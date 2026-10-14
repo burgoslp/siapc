@@ -127,12 +127,30 @@
                         </svg>
                     </button>
                     <div x-show="open" x-cloak x-transition class="pl-8 space-y-1">
-                        <a href="#" class="block px-3 py-2 text-sm font-medium text-slate-400 hover:text-teal-400 hover:bg-slate-800/40 rounded-lg transition-colors">Especialidades</a>
-                        <a href="#" class="block px-3 py-2 text-sm font-medium text-slate-400 hover:text-teal-400 hover:bg-slate-800/40 rounded-lg transition-colors">Condiciones</a>
-                        <a href="#" class="block px-3 py-2 text-sm font-medium text-slate-400 hover:text-teal-400 hover:bg-slate-800/40 rounded-lg transition-colors">Alergenos</a>
-                        <a href="#" class="block px-3 py-2 text-sm font-medium text-slate-400 hover:text-teal-400 hover:bg-slate-800/40 rounded-lg transition-colors">Personal médico</a>
-                        <a href="#" class="block px-3 py-2 text-sm font-medium text-slate-400 hover:text-teal-400 hover:bg-slate-800/40 rounded-lg transition-colors">Salas & Consultorios</a>
-                        <a href="#" class="block px-3 py-2 text-sm font-medium text-slate-400 hover:text-teal-400 hover:bg-slate-800/40 rounded-lg transition-colors">Tasas de cambio</a>
+                        <a href="{{ route('especialidades.index') }}"
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('especialidades.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Especialidades
+                        </a>
+                        <a href="{{ route('condiciones.index') }}"
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('condiciones.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Condiciones
+                        </a>
+                        <a href="{{ route('alergenos.index') }}"
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('alergenos.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Alérgenos
+                        </a>
+                        <a href="{{ route('medicos.index') }}"
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('medicos.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Personal Médico
+                        </a>
+                        <a href="{{ route('tarifas.index') }}"
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('tarifas.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Tarifas
+                        </a>
+                        <a href="{{ route('tasas.index') }}"
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('tasas.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Tasas de Cambio
+                        </a>
                     </div>
                 </div>
             </nav>
