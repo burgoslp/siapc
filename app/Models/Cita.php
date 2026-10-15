@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Cita extends Model
@@ -16,9 +17,12 @@ class Cita extends Model
 
     protected $casts = [
         'fecha' => 'datetime',
+        'total_pagado' => 'decimal:2',
     ];
 
-    // ---------- Relaciones ----------
+    // ============================================================
+    // RELACIONES
+    // ============================================================
 
     public function paciente(): BelongsTo
     {
@@ -34,6 +38,7 @@ class Cita extends Model
     {
         return $this->hasOne(Consulta::class, 'cita_id');
     }
+
     public function tarifa(): BelongsTo
     {
         return $this->belongsTo(Tarifa::class, 'tarifa_id');
@@ -49,7 +54,14 @@ class Cita extends Model
         return $this->belongsTo(Cambio::class, 'cambio_id');
     }
 
-    // ---------- Scopes ----------
+    public function pagos(): HasMany
+    {
+        return $this->hasMany(Pago::class, 'cita_id');
+    }
+
+    // ============================================================
+    // SCOPES
+    // ============================================================
 
     public function scopeHoy($q)
     {
@@ -75,10 +87,13 @@ class Cita extends Model
     {
         return $q->where('estado', 'COMPLETADA');
     }
-    // ---------- Accessors de facturación ----------
+
+    // ============================================================
+    // ACCESSORS DE TOTALES
+    // ============================================================
 
     /**
-     * Total en bolívares usando la tasa congelada en la cita.
+     * Total de la cita en Bs (usando la tasa congelada en la cita).
      */
     public function getTotalBsAttribute(): ?float
     {
@@ -86,40 +101,121 @@ class Cita extends Model
             return null;
         }
 
-        return round($this->total * $this->monto_tasa_cambio, 2);
+        return round((float) $this->total * (float) $this->monto_tasa_cambio, 2);
     }
+
+    /**
+     * Total pagado en USD, calculado sumando los pagos.
+     * Solo se usa para saber si la cita está PAGADA / PARCIAL.
+     */
+    public function getTotalPagadoUsdAttribute(): float
+    {
+        return round(
+            $this->pagos->sum(fn($p) => $p->monto_usd),
+            2
+        );
+    }
+
+    /**
+     * Saldo pendiente en USD.
+     */
+    public function getSaldoPendienteUsdAttribute(): float
+    {
+        return max(0, round((float) $this->total - $this->total_pagado_usd, 2));
+    }
+
+    /**
+     * Saldo pendiente en Bs (usando la tasa de la cita).
+     */
+    public function getSaldoPendienteBsAttribute(): float
+    {
+        $tasaCita = (float) $this->monto_tasa_cambio;
+        if ($tasaCita <= 0) return 0;
+
+        return round($this->saldo_pendiente_usd * $tasaCita, 2);
+    }
+
+    // ============================================================
+    // ACCESSORS DE FORMATO
+    // ============================================================
 
     public function getTotalFormateadoAttribute(): ?string
     {
         if (!$this->total) return null;
-        return '$' . number_format($this->total, 2);
+        return '$' . number_format((float) $this->total, 2);
     }
 
     public function getTotalBsFormateadoAttribute(): ?string
     {
-        $totalBs = $this->total_bs;
-        if (!$totalBs) return null;
-        return 'Bs ' . number_format($totalBs, 2);
+        return $this->total_bs
+            ? 'Bs ' . number_format($this->total_bs, 2)
+            : null;
+    }
+
+    public function getTotalPagadoFormateadoAttribute(): string
+    {
+        return 'Bs ' . number_format((float) $this->total_pagado, 2);
+    }
+
+    public function getTotalPagadoUsdFormateadoAttribute(): string
+    {
+        return '$' . number_format($this->total_pagado_usd, 2);
+    }
+
+    public function getSaldoPendienteUsdFormateadoAttribute(): string
+    {
+        return '$' . number_format($this->saldo_pendiente_usd, 2);
+    }
+
+    // ============================================================
+    // LÓGICA DE PAGOS
+    // ============================================================
+
+    /**
+     * Recalcula el estado de pago según el acumulado en pagos.
+     */
+    public function recalcularEstadoPago(): void
+    {
+        $total = (float) $this->total;
+        $pagadoUsd = $this->total_pagado_usd;
+
+        if ($pagadoUsd >= $total) {
+            $this->estado_pago = 'PAGADA';
+        } elseif ($pagadoUsd > 0) {
+            $this->estado_pago = 'PARCIAL';
+        } else {
+            $this->estado_pago = 'PENDIENTE';
+        }
+
+        $this->save();
     }
 
     /**
-     * Verifica si existe un conflicto de horario para un médico.
-     * Ignora la cita actual al editar.
+     * Agrega un monto en Bs al acumulador de la cita.
+     * Este acumulador es para el cuadre de caja.
      */
+    public function agregarPagoBs(float $montoBs): void
+    {
+        $this->total_pagado = round((float) $this->total_pagado + $montoBs, 2);
+        $this->save();
+    }
+
+    // ============================================================
+    // CONFLICTOS DE HORARIO
+    // ============================================================
+
     public static function hayConflicto(
         int $medicoId,
         string $fecha,
         ?int $excluirCitaId = null
     ): bool {
-        // Consideramos una cita que dura 30 minutos por defecto
         $inicio = \Carbon\Carbon::parse($fecha);
         $fin = $inicio->copy()->addMinutes(30);
 
         return static::where('medico_id', $medicoId)
-            ->where('estado', '!=', 'CANCELADA')
+            ->whereNotIn('estado', ['CANCELADA', 'NO_ASISTIO'])
             ->when($excluirCitaId, fn($q) => $q->where('id', '!=', $excluirCitaId))
             ->where(function ($q) use ($inicio, $fin) {
-                // Se solapa si: (nueva_inicio < existente_fin) AND (nueva_fin > existente_inicio)
                 $q->where('fecha', '<', $fin)
                   ->whereRaw('DATE_ADD(fecha, INTERVAL 30 MINUTE) > ?', [$inicio]);
             })

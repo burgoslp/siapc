@@ -38,6 +38,41 @@ class User extends Authenticatable
         return $this->belongsToMany(Role::class, 'role_user');
     }
 
+    // ---------- Helpers de roles ----------
+
+    public function tieneRol(string $nombre): bool
+    {
+        return $this->roles->contains('nombre', $nombre);
+    }
+
+    public function tieneAlgunRol(array $nombres): bool
+    {
+        return $this->roles->whereIn('nombre', $nombres)->isNotEmpty();
+    }
+
+    public function esAdmin(): bool
+    {
+        return $this->tieneRol('admin');
+    }
+
+    public function esMedico(): bool
+    {
+        return $this->tieneRol('medico') && $this->medico !== null;
+    }
+
+    public function esRecepcion(): bool
+    {
+        return $this->tieneRol('recepcion');
+    }
+
+    /**
+     * ¿Puede ver todas las citas/consultas? (admin y recepción)
+     */
+    public function puedeVerTodo(): bool
+    {
+        return $this->tieneAlgunRol(['admin', 'recepcion']);
+    }
+
     public function medico(): HasOne
     {
         return $this->hasOne(Medico::class, 'user_id');
@@ -54,4 +89,11 @@ class User extends Authenticatable
         // Si no, muestra el username o un texto genérico
         return ucfirst($this->username);
     }
+
+    public function getRolMostrarAttribute(): string
+    {
+        return $this->roles->pluck('etiqueta')->join(' · ') ?: 'Sin rol';
+    }
+
+
 }

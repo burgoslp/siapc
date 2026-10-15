@@ -72,6 +72,10 @@ new class extends Component
     public function with(): array
     {
         $query = Cita::with(['paciente', 'medico.especialidades','tarifa']);
+        // Filtrar por médico si es un médico puro (sin admin/recepcion)
+        if (auth()->user()?->esMedico() && !auth()->user()->puedeVerTodo()) {
+            $query->where('medico_id', auth()->user()->medico->id);
+        }
 
         // Rango rápido
         switch ($this->rango) {
@@ -167,13 +171,15 @@ new class extends Component
             <option value="REPROGRAMADA">Reprogramada</option>
         </select>
 
-        <select wire:model.live="medicoId"
-                class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            <option value="">Todos los médicos</option>
-            @foreach ($medicos as $m)
-                <option value="{{ $m->id }}">{{ $m->nombre }} {{ $m->apellido }}</option>
-            @endforeach
-        </select>
+        @if (auth()->user()?->puedeVerTodo())
+            <select wire:model.live="medicoId"
+                    class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                <option value="">Todos los médicos</option>
+                @foreach ($medicos as $m)
+                    <option value="{{ $m->id }}">{{ $m->nombre }} {{ $m->apellido }}</option>
+                @endforeach
+            </select>
+        @endif
 
         <div class="flex gap-2">
             <input type="date" wire:model.live="fechaDesde"

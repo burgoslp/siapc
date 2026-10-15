@@ -33,17 +33,28 @@ new class extends Component
     {
         $medicos = Medico::where('estado', 'ACTIVO')->orderBy('apellido')->get();
 
-        $contadorPendientes = Cita::where('estado', 'CONFIRMADA')
-            ->whereDoesntHave('consulta')
-            ->count();
+        $contadorPendientesQuery = Cita::where('estado', 'CONFIRMADA')
+            ->whereDoesntHave('consulta');
 
-        $contadorAtendidas = Consulta::count();
+        $contadorAtendidasQuery = Consulta::query();
+
+        if (auth()->user()?->esMedico() && !auth()->user()->puedeVerTodo()) {
+            $contadorPendientesQuery->where('medico_id', auth()->user()->medico->id);
+            $contadorAtendidasQuery->where('medico_id', auth()->user()->medico->id);
+        }
+
+        $contadorPendientes = $contadorPendientesQuery->count();
+        $contadorAtendidas = $contadorAtendidasQuery->count();
 
         if ($this->tab === 'pendientes') {
             // Citas CONFIRMADAS que aún no tienen consulta registrada
             $query = Cita::with(['paciente', 'medico.especialidades'])
                 ->where('estado', 'CONFIRMADA')
                 ->whereDoesntHave('consulta');
+
+            if (auth()->user()?->esMedico() && !auth()->user()->puedeVerTodo()) {
+                $query->where('medico_id', auth()->user()->medico->id);
+            }
 
             if ($this->search !== '') {
                 $term = $this->search;
@@ -69,6 +80,9 @@ new class extends Component
 
         // Tab atendidas: consultas ya creadas
         $query = Consulta::with(['paciente', 'medico', 'cita']);
+        if (auth()->user()?->esMedico() && !auth()->user()->puedeVerTodo()) {
+            $query->where('medico_id', auth()->user()->medico->id);
+        }
 
         if ($this->search !== '') {
             $term = $this->search;
@@ -129,13 +143,15 @@ new class extends Component
             </svg>
         </div>
 
-        <select wire:model.live="medicoId"
-                class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
-            <option value="">Todos los médicos</option>
-            @foreach ($medicos as $m)
-                <option value="{{ $m->id }}">{{ $m->nombre }} {{ $m->apellido }}</option>
-            @endforeach
-        </select>
+        @if (auth()->user()?->puedeVerTodo())
+            <select wire:model.live="medicoId"
+                    class="px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                <option value="">Todos los médicos</option>
+                @foreach ($medicos as $m)
+                    <option value="{{ $m->id }}">{{ $m->nombre }} {{ $m->apellido }}</option>
+                @endforeach
+            </select>
+        @endif
     </div>
 
     {{-- Mensajes --}}

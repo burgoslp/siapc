@@ -10,14 +10,22 @@ use App\Http\Controllers\AlergenoController;
 use App\Http\Controllers\MedicoController;
 use App\Http\Controllers\TarifaController;
 use App\Http\Controllers\TasaController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\FacturacionController;
+/*
+|--------------------------------------------------------------------------
+| Rutas autenticadas (cualquier rol)
+|--------------------------------------------------------------------------
+*/
 
 Route::middleware(['auth'])->group(function () {
 
     // Dashboard
-    Route::get('/', fn() => view('auth.dashboard'))->name('dashboard');
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
     // Pacientes
-    Route::resource('pacientes', PacienteController::class)->except(['create', 'store', 'edit', 'update']);
+    Route::resource('pacientes', PacienteController::class)
+        ->except(['create', 'store', 'edit', 'update']);
 
     // Citas
     Route::get('citas', [CitaController::class, 'index'])->name('citas.index');
@@ -25,19 +33,25 @@ Route::middleware(['auth'])->group(function () {
     // Consultas
     Route::get('consultas', [ConsultaController::class, 'index'])->name('consultas.index');
 
-    //parametros 
+    Route::get('facturacion', [FacturacionController::class, 'index'])->name('facturacion.index');
+
+    Route::get('facturacion/pagos', [FacturacionController::class, 'pagos'])->name('facturacion.pagos');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Rutas de Parámetros (solo admin)
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware(['auth', 'role:admin'])->prefix('parametros')->group(function () {
+
     Route::get('especialidades', [EspecialidadController::class, 'index'])->name('especialidades.index');
     Route::get('condiciones', [CondicionController::class, 'index'])->name('condiciones.index');
     Route::get('alergenos', [AlergenoController::class, 'index'])->name('alergenos.index');
-
-    //medicos
-    Route::get('parametros/medicos', [MedicoController::class, 'index'])->name('medicos.index');
-
-    //tarifas
-    Route::get('parametros/tarifas', [TarifaController::class, 'index'])->name('tarifas.index');
-
-    //tasas
-    Route::get('parametros/tasas', [TasaController::class, 'index'])->name('tasas.index');
+    Route::get('medicos', [MedicoController::class, 'index'])->name('medicos.index');
+    Route::get('tarifas', [TarifaController::class, 'index'])->name('tarifas.index');
+    Route::get('tasas', [TasaController::class, 'index'])->name('tasas.index');
 });
 
 /*
