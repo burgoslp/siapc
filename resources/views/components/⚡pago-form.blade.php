@@ -35,6 +35,12 @@ new class extends Component
             return;
         }
 
+        //
+        if ($this->caja->estaVencida()) {
+            session()->flash('error', 'La caja abierta es de un día anterior. Debes cerrarla antes de registrar nuevos pagos.');
+            return;
+        }
+
         // Cargar la cita
         $this->cita = Cita::with(['paciente', 'medico', 'pagos'])->find($citaId);
         if (!$this->cita) {
@@ -202,6 +208,11 @@ new class extends Component
     {
         if (!$this->cita || !$this->caja) {
             session()->flash('error', 'Faltan datos para procesar el pago.');
+            return;
+        }
+
+        if ($this->caja->estaVencida()) {
+            session()->flash('error', 'La caja abierta es de un día anterior. Debes cerrarla antes de registrar nuevos pagos.');
             return;
         }
 

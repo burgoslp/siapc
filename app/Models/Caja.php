@@ -162,4 +162,36 @@ class Caja extends Model
 
         return $prefijo . str_pad($numero, 3, '0', STR_PAD_LEFT);
     }
+
+
+    /**
+     * ¿La caja fue abierta hoy?
+     */
+    public function esDeHoy(): bool
+    {
+        return $this->abierta_en->isToday();
+    }
+
+    /**
+     * ¿La caja está vencida (abierta de un día anterior)?
+     */
+    public function estaVencida(): bool
+    {
+        return $this->estado === 'ABIERTA' && !$this->esDeHoy();
+    }
+
+    /**
+     * Caja abierta actual (con datos del día).
+     * Devuelve null si la caja abierta es de un día anterior.
+     */
+    public static function abiertaDeHoy(): ?self
+    {
+        $caja = static::abierta();
+
+        if (!$caja || !$caja->esDeHoy()) {
+            return null;
+        }
+
+        return $caja;
+    }
 }

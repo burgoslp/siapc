@@ -13,9 +13,13 @@ new class extends Component
     #[On('abrir-caja')]
     public function abrir(): void
     {
-        // No permitir abrir si ya hay una caja abierta
-        if (Caja::hayAbierta()) {
-            session()->flash('error', 'Ya hay una caja abierta. Debes cerrarla antes de abrir una nueva.');
+        $cajaAbierta = Caja::abierta();
+        if ($cajaAbierta) {
+            if ($cajaAbierta->estaVencida()) {
+                session()->flash('error', 'Hay una caja abierta de un día anterior. Cierra esa caja primero.');
+            } else {
+                session()->flash('error', 'Ya hay una caja abierta. Debes cerrarla antes de abrir una nueva.');
+            }
             return;
         }
 

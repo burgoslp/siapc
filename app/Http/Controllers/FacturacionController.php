@@ -14,19 +14,21 @@ class FacturacionController extends Controller
         $esMedicoPuro = $user->esMedico() && !$user->puedeVerTodo();
 
         // ============================================================
-        // Caja abierta (si existe)
+        // Detectar cajas (abierta y vencida)
         // ============================================================
-        $cajaAbierta = Caja::abierta();
+        $cajaAbierta = Caja::abierta();               // puede ser de hoy o vencida
+        $cajaVencida = $cajaAbierta?->estaVencida() ? $cajaAbierta : null;
+        $cajaDisponible = $cajaVencida ? null : $cajaAbierta;  // caja válida para operar
 
         // ============================================================
-        // Última caja cerrada (para mostrar el último cierre)
+        // Última caja cerrada
         // ============================================================
         $ultimaCajaCerrada = Caja::where('estado', 'CERRADA')
             ->latest('cerrada_en')
             ->first();
 
         // ============================================================
-        // Citas pendientes por cobrar (CONFIRMADA o COMPLETADA)
+        // Citas pendientes por cobrar
         // ============================================================
         $queryPendientes = Cita::with(['paciente', 'medico.especialidades'])
             ->whereIn('estado', ['CONFIRMADA', 'COMPLETADA'])
@@ -39,14 +41,11 @@ class FacturacionController extends Controller
         }
 
         $citasPorCobrar = $queryPendientes->get();
-
-        // ============================================================
-        // Total pendiente por cobrar (USD)
-        // ============================================================
         $totalPendienteUsd = $citasPorCobrar->sum(fn($c) => $c->saldo_pendiente_usd);
 
         return view('facturacion.index', compact(
-            'cajaAbierta',
+            'cajaDisponible',
+            'cajaVencida',
             'ultimaCajaCerrada',
             'citasPorCobrar',
             'totalPendienteUsd',

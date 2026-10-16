@@ -27,11 +27,110 @@
         </div>
     </div>
 
+    @if (session('success'))
+        <div class="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-800">
+            {{ session('success') }}
+        </div>
+    @endif
+
+    @if (session('error'))
+        <div class="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+            {{ session('error') }}
+        </div>
+    @endif
+
     {{-- ============================================================ --}}
-    {{-- ESTADO DE LA CAJA --}}
+    {{-- ALERTA: CAJA VENCIDA --}}
     {{-- ============================================================ --}}
-    @if ($cajaAbierta)
-        {{-- Caja abierta --}}
+    @if ($cajaVencida)
+        <div class="bg-white rounded-2xl shadow-sm border border-red-300 ring-1 ring-red-100 overflow-hidden">
+            <div class="bg-red-50 border-b border-red-200 px-6 py-4">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-full bg-red-500 text-white flex items-center justify-center">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-lg font-bold text-red-800">Caja sin cerrar del día anterior</h2>
+                            </div>
+                            <p class="text-xs text-red-700 mt-0.5">
+                                La caja <span class="font-mono font-semibold">{{ $cajaVencida->codigo }}</span>
+                                fue abierta el {{ $cajaVencida->abierta_en->format('d/m/Y \a \l\a\s H:i') }}
+                                y aún no ha sido cerrada.
+                            </p>
+                        </div>
+                    </div>
+
+                    <button type="button"
+                            onclick="Livewire.dispatch('cerrar-caja')"
+                            class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 inline-flex items-center shadow-md shadow-red-600/20">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                        </svg>
+                        Cerrar la caja ahora
+                    </button>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <div class="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800 space-y-2">
+                    <p class="font-semibold">¿Por qué no puedo registrar pagos?</p>
+                    <p class="text-xs leading-relaxed">
+                        Los pagos que registres hoy se guardarían con la fecha de apertura de la caja de ayer,
+                        lo que causaría un descuadre en los reportes y en el cierre de caja.
+                    </p>
+                    <p class="text-xs leading-relaxed font-semibold">
+                        Para continuar, cierra la caja del día anterior. Después podrás abrir una nueva caja para hoy.
+                    </p>
+                </div>
+
+                {{-- Resumen de la caja vencida --}}
+                <div class="mt-4">
+                    <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                        Totales de la caja sin cerrar
+                    </p>
+
+                    @php
+                        $totalesVencida = $cajaVencida->totalesPorFormaPago();
+                    @endphp
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        @foreach ($formas as $key => $info)
+                            @if (($totalesVencida[$key] ?? 0) > 0)
+                                <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                    <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                                        {{ $info['label'] }}
+                                    </p>
+                                    <p class="text-sm font-bold text-gray-800 mt-1">
+                                        Bs {{ number_format($totalesVencida[$key], 2) }}
+                                    </p>
+                                </div>
+                            @endif
+                        @endforeach
+                    </div>
+
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                                Total General
+                            </span>
+                            <span class="text-2xl font-bold text-red-700">
+                                Bs {{ number_format($cajaVencida->totalGeneralBs(), 2) }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- ============================================================ --}}
+    {{-- CAJA ABIERTA DE HOY --}}
+    {{-- ============================================================ --}}
+    @if ($cajaDisponible && !$cajaVencida)
         <div class="bg-white rounded-2xl shadow-sm border border-teal-200 ring-1 ring-teal-100 overflow-hidden">
             <div class="bg-teal-50 border-b border-teal-100 px-6 py-4">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -49,9 +148,9 @@
                                 </span>
                             </div>
                             <p class="text-xs text-gray-600 mt-0.5">
-                                <span class="font-mono font-semibold">{{ $cajaAbierta->codigo }}</span>
-                                · Abierta {{ $cajaAbierta->abierta_en->diffForHumans() }}
-                                · Por {{ $cajaAbierta->abiertaPor?->nombre_mostrar ?? 'N/A' }}
+                                <span class="font-mono font-semibold">{{ $cajaDisponible->codigo }}</span>
+                                · Abierta {{ $cajaDisponible->abierta_en->diffForHumans() }}
+                                · Por {{ $cajaDisponible->abiertaPor?->nombre_mostrar ?? 'N/A' }}
                             </p>
                         </div>
                     </div>
@@ -83,7 +182,7 @@
                 </p>
 
                 @php
-                    $totales = $cajaAbierta->totalesPorFormaPago();
+                    $totales = $cajaDisponible->totalesPorFormaPago();
                 @endphp
 
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -105,24 +204,24 @@
                             Total General del Día
                         </p>
                         <p class="text-2xl font-bold text-teal-700">
-                            Bs {{ number_format($cajaAbierta->totalGeneralBs(), 2) }}
+                            Bs {{ number_format($cajaDisponible->totalGeneralBs(), 2) }}
                         </p>
                     </div>
-                    @if ($cajaAbierta->monto_inicial > 0)
+                    @if ($cajaDisponible->monto_inicial > 0)
                         <div class="text-right">
                             <p class="text-xs text-gray-500 uppercase tracking-wider font-semibold">
                                 Monto Inicial
                             </p>
                             <p class="text-sm font-semibold text-gray-700">
-                                {{ $cajaAbierta->moneda_inicial === 'bs' ? 'Bs ' : ($cajaAbierta->moneda_inicial === 'dolar' ? '$' : '€') }}
-                                {{ number_format($cajaAbierta->monto_inicial, 2) }}
+                                {{ $cajaDisponible->moneda_inicial === 'bs' ? 'Bs ' : ($cajaDisponible->moneda_inicial === 'dolar' ? '$' : '€') }}
+                                {{ number_format($cajaDisponible->monto_inicial, 2) }}
                             </p>
                         </div>
                     @endif
                 </div>
             </div>
         </div>
-    @else
+    @elseif (!$cajaVencida)
         {{-- Sin caja abierta --}}
         <div class="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden">
             <div class="bg-amber-50 border-b border-amber-100 px-6 py-4">
@@ -157,7 +256,7 @@
     {{-- ============================================================ --}}
     {{-- ÚLTIMO CIERRE --}}
     {{-- ============================================================ --}}
-    @if ($ultimaCajaCerrada && !$cajaAbierta)
+    @if ($ultimaCajaCerrada && !$cajaDisponible && !$cajaVencida)
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-100">
                 <div class="flex items-center justify-between">
@@ -301,14 +400,38 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 text-right whitespace-nowrap">
-                                    <button type="button"
-                                            onclick="Livewire.dispatch('cobrar-cita', { citaId: {{ $cita->id }} })"
-                                            class="px-3 py-1.5 bg-teal-600 text-white rounded-md text-xs font-medium hover:bg-teal-700 inline-flex items-center">
-                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
-                                        </svg>
-                                        Cobrar
-                                    </button>
+                                    @if ($cajaVencida)
+                                        {{-- Caja vencida: deshabilitar --}}
+                                        <button type="button"
+                                                onclick="alert('Debes cerrar la caja del día anterior antes de registrar pagos.')"
+                                                class="px-3 py-1.5 bg-gray-300 text-gray-500 rounded-md text-xs font-medium cursor-not-allowed inline-flex items-center"
+                                                title="Cierra la caja del día anterior para poder cobrar">
+                                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                            </svg>
+                                            Bloqueado
+                                        </button>
+                                    @elseif (!$cajaDisponible)
+                                        {{-- Sin caja abierta --}}
+                                        <button type="button"
+                                                onclick="Livewire.dispatch('abrir-caja')"
+                                                class="px-3 py-1.5 bg-amber-500 text-white rounded-md text-xs font-medium hover:bg-amber-600 inline-flex items-center">
+                                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                                            </svg>
+                                            Abrir Caja
+                                        </button>
+                                    @else
+                                        {{-- Caja abierta de hoy: botón normal --}}
+                                        <button type="button"
+                                                onclick="Livewire.dispatch('cobrar-cita', { citaId: {{ $cita->id }} })"
+                                                class="px-3 py-1.5 bg-teal-600 text-white rounded-md text-xs font-medium hover:bg-teal-700 inline-flex items-center">
+                                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                                            </svg>
+                                            Cobrar
+                                        </button>
+                                    @endif
                                 </td>
                             </tr>
                         @endforeach
@@ -317,6 +440,7 @@
             </div>
         @endif
     </div>
+
     <livewire:caja-apertura />
     <livewire:caja-cierre />
     <livewire:pago-form />
