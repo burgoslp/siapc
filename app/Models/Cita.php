@@ -111,7 +111,7 @@ class Cita extends Model
     public function getTotalPagadoUsdAttribute(): float
     {
         return round(
-            $this->pagos->sum(fn($p) => $p->monto_usd),
+            $this->pagos->where('estado', 'ACTIVO')->sum(fn($p) => $p->monto_usd),
             2
         );
     }

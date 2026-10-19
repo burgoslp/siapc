@@ -53,7 +53,7 @@
                         </svg>
                     </div>
                     <div>
-                        <span class="text-lg font-bold text-white tracking-wide">ClíniCare</span>
+                        <span class="text-lg font-bold text-white tracking-wide">SIAPC</span>
                         <span class="block text-xs text-teal-400 font-medium">Salud & Bienestar</span>
                     </div>
                 </a>
@@ -66,25 +66,30 @@
 
             {{-- Navigation Links --}}
             <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-                <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Menú Principal</p>
+                {{-- Dashboard --}}
+                <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Inicio</p>
 
-                {{-- Dashboard Link --}}
                 <a href="{{ route('dashboard') }}"
-                   class="flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all {{ request()->routeIs('dashboard') ? 'text-white bg-teal-600 shadow-md shadow-teal-600/20' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60' }}">
+                class="flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all {{ request()->routeIs('dashboard') ? 'text-white bg-teal-600 shadow-md shadow-teal-600/20' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60' }}">
                     <svg class="w-5 h-5 mr-3 {{ request()->routeIs('dashboard') ? 'text-teal-100' : 'text-slate-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
                     </svg>
                     Dashboard
                 </a>
 
-                {{-- Módulos Section --}}
-                <div x-data="{ open: true }" class="space-y-1 pt-2">
-                    <button @click="open = !open" class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors">
+                {{-- ============================================================ --}}
+                {{-- MÓDULO: MÉDICOS --}}
+                {{-- ============================================================ --}}
+                <div x-data="{ open: true }" class="space-y-1 pt-4">
+                    <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Módulos Médicos</p>
+
+                    <button @click="open = !open"
+                            class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors">
                         <span class="flex items-center">
-                            <svg class="w-5 h-5 mr-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-5 h-5 mr-3 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                             </svg>
-                            Módulos Médicos
+                            Gestión Clínica
                         </span>
                         <svg :class="open ? 'rotate-90' : ''" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -93,12 +98,12 @@
 
                     <div x-show="open" x-cloak x-transition class="pl-8 space-y-1">
                         <a href="{{ route('pacientes.index') }}"
-                           class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('pacientes.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
-                            Pacientes & Historial
+                        class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('pacientes.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                            Pacientes
                         </a>
                         <a href="{{ route('citas.index') }}"
                         class="flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('citas.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
-                            <span>Gestión de Citas</span>
+                            <span>Citas</span>
                             <span class="px-2 py-0.5 text-xs font-semibold bg-teal-500/10 text-teal-400 rounded-full">
                                 {{ \App\Models\Cita::hoy()->count() }}
                             </span>
@@ -107,61 +112,95 @@
                         class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('consultas.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
                             Consultas
                         </a>
+                    </div>
+                </div>
+
+                {{-- ============================================================ --}}
+                {{-- MÓDULO: FACTURACIÓN --}}
+                {{-- ============================================================ --}}
+                <div x-data="{ open: true }" class="space-y-1 pt-2">
+                    <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Facturación y Pagos</p>
+
+                    <button @click="open = !open"
+                            class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors">
+                        <span class="flex items-center">
+                            <svg class="w-5 h-5 mr-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                            </svg>
+                            Caja y Cobros
+                        </span>
+                        <svg :class="open ? 'rotate-90' : ''" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </button>
+
+                    <div x-show="open" x-cloak x-transition class="pl-8 space-y-1">
                         <a href="{{ route('facturacion.index') }}"
-                        class="flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('facturacion.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
-                            <span>Facturación & Pagos</span>
+                        class="flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('facturacion.index') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                            <span>Facturación</span>
                             @if (\App\Models\Caja::hayAbierta())
                                 <span class="px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-500/20 text-emerald-400 rounded-full">
                                     Abierta
                                 </span>
                             @endif
                         </a>
+                        <a href="{{ route('facturacion.cajas') }}"
+                        class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('facturacion.cajas*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                            Portadas
+                        </a>
                     </div>
                 </div>
 
-                {{-- Parámetros Section --}}
+                {{-- ============================================================ --}}
+                {{-- MÓDULO: PARÁMETROS (solo admin) --}}
+                {{-- ============================================================ --}}
                 @if (auth()->user()?->esAdmin())
                     <div x-data="{ open: false }" class="space-y-1 pt-2">
-                        <button @click="open = !open" class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors">
+                        <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Parámetros</p>
+
+                        <button @click="open = !open"
+                                class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors">
                             <span class="flex items-center">
-                                <svg class="w-5 h-5 mr-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg class="w-5 h-5 mr-3 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                 </svg>
-                                Parámetros
+                                Configuración
                             </span>
                             <svg :class="open ? 'rotate-90' : ''" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                             </svg>
                         </button>
+
                         <div x-show="open" x-cloak x-transition class="pl-8 space-y-1">
                             <a href="{{ route('especialidades.index') }}"
-                                class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('especialidades.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
-                                    Especialidades
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('especialidades.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Especialidades
                             </a>
                             <a href="{{ route('condiciones.index') }}"
-                                class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('condiciones.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
-                                    Condiciones
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('condiciones.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Condiciones
                             </a>
                             <a href="{{ route('alergenos.index') }}"
-                                class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('alergenos.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
-                                    Alérgenos
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('alergenos.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Alérgenos
                             </a>
                             <a href="{{ route('medicos.index') }}"
-                                class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('medicos.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
-                                    Personal Médico
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('medicos.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Médicos
                             </a>
                             <a href="{{ route('tarifas.index') }}"
-                                class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('tarifas.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
-                                    Tarifas
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('tarifas.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Tarifas
                             </a>
                             <a href="{{ route('tasas.index') }}"
-                                class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('tasas.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
-                                    Tasas de Cambio
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('tasas.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Tasas de Cambio
                             </a>
                         </div>
                     </div>
                 @endif
+
             </nav>
 
             {{-- User Brief / Footer --}}

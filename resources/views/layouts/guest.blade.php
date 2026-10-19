@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ config('app.name', 'ClíniCare') }}</title>
+    <title>{{ config('app.name', 'SIAPC') }}</title>
 
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -43,7 +43,7 @@
                         </svg>
                     </div>
                     <div>
-                        <span class="text-xl font-bold tracking-wide">ClíniCare</span>
+                        <span class="text-xl font-bold tracking-wide">SIAPC</span>
                         <span class="block text-xs text-teal-400 font-medium">Salud & Bienestar</span>
                     </div>
                 </a>
@@ -52,7 +52,7 @@
             {{-- Mensaje central --}}
             <div class="relative z-10 space-y-4">
                 <h1 class="text-3xl font-bold leading-tight">
-                    Bienvenido a ClíniCare
+                    Bienvenido a SIAPC
                 </h1>
                 <p class="text-slate-400 text-sm leading-relaxed max-w-sm">
                     Sistema integral para la gestión clínica de tu consultorio. Pacientes, citas, consultas e historial médico en un solo lugar.
@@ -82,7 +82,7 @@
 
             {{-- Footer --}}
             <div class="relative z-10 text-xs text-slate-500">
-                © {{ date('Y') }} ClíniCare · Centro Médico
+                © {{ date('Y') }} SIAPC · Centro Médico
             </div>
         </div>
 

@@ -34,6 +34,8 @@
 
     @if ($caja)
         <livewire:pagos-table :cajaId="$caja->id" />
+        <livewire:pago-anulacion />
+        <livewire:pago-edicion-form />
     @else
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 text-center text-gray-500">
             No hay caja seleccionada para mostrar pagos.

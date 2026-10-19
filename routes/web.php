@@ -33,9 +33,12 @@ Route::middleware(['auth'])->group(function () {
     // Consultas
     Route::get('consultas', [ConsultaController::class, 'index'])->name('consultas.index');
 
+    //Facturación
     Route::get('facturacion', [FacturacionController::class, 'index'])->name('facturacion.index');
 
     Route::get('facturacion/pagos', [FacturacionController::class, 'pagos'])->name('facturacion.pagos');
+    Route::get('facturacion/cajas', [FacturacionController::class, 'cajas'])->name('facturacion.cajas');
+    Route::get('facturacion/cajas/{caja}', [FacturacionController::class, 'cajaDetalle'])->name('facturacion.cajas.detalle');
 });
 
 /*

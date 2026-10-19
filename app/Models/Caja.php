@@ -94,7 +94,7 @@ class Caja extends Model
         ];
 
         // Cargar todos los pagos UNA vez
-        $pagos = $this->pagos()->get();
+        $pagos = $this->pagos()->where('estado', 'ACTIVO')->get();
 
         $totales = [];
 
@@ -119,7 +119,8 @@ class Caja extends Model
     public function totalGeneralBs(): float
     {
         return round(
-            $this->pagos->sum(fn($p) => $p->monto_bs),
+            $this->pagos()->where('estado', 'ACTIVO')->get()
+                ->sum(fn($p) => (float) $p->monto_bs),
             2
         );
     }

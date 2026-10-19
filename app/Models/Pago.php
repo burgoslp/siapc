@@ -16,6 +16,7 @@ class Pago extends Model
     protected $casts = [
         'monto' => 'decimal:2',
         'tasa_momento' => 'decimal:4',
+        'anulado_en' => 'datetime'
     ];
 
     // ============================================================
@@ -50,6 +51,11 @@ class Pago extends Model
     public function registradoPor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'registrado_por');
+    }
+
+    public function anuladoPor(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'anulado_por');
     }
 
     // ============================================================
@@ -144,5 +150,27 @@ class Pago extends Model
         };
 
         return $simbolo . number_format((float) $this->monto, 2);
+    }
+    
+    public function getEstaAnuladoAttribute(): bool
+    {
+        return $this->estado === 'ANULADO';
+    }
+
+    public function getEstaActivoAttribute(): bool
+    {
+        return $this->estado === 'ACTIVO';
+    }
+
+    // scopees 
+
+    public function scopeActivos($query)
+    {
+        return $query->where('estado', 'ACTIVO');
+    }
+
+    public function scopeAnulados($query)
+    {
+        return $query->where('estado', 'ANULADO');
     }
 }
