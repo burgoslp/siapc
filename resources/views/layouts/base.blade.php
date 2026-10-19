@@ -151,6 +151,33 @@
                     </div>
                 </div>
 
+                {{-- TESORERÍA --}}
+                @if (auth()->user()?->esAdmin())
+                    <div x-data="{ open: false }" class="space-y-1 pt-2">
+                        <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Configuración Financiera</p>
+
+                        <button @click="open = !open"
+                                class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors">
+                            <span class="flex items-center">
+                                <svg class="w-5 h-5 mr-3 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                                </svg>
+                                Tesorería
+                            </span>
+                            <svg :class="open ? 'rotate-90' : ''" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+
+                        <div x-show="open" x-cloak x-transition class="pl-8 space-y-1">
+                            <a href="{{ route('tesoreria.cuentas.index') }}"
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('tesoreria.cuentas.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Cuentas Bancarias
+                            </a>
+                        </div>
+                    </div>
+                @endif
+
                 {{-- ============================================================ --}}
                 {{-- MÓDULO: PARÁMETROS (solo admin) --}}
                 {{-- ============================================================ --}}

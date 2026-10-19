@@ -12,6 +12,7 @@ use App\Http\Controllers\TarifaController;
 use App\Http\Controllers\TasaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FacturacionController;
+use App\Http\Controllers\CuentaController;
 /*
 |--------------------------------------------------------------------------
 | Rutas autenticadas (cualquier rol)
@@ -55,7 +56,14 @@ Route::middleware(['auth', 'role:admin'])->prefix('parametros')->group(function 
     Route::get('medicos', [MedicoController::class, 'index'])->name('medicos.index');
     Route::get('tarifas', [TarifaController::class, 'index'])->name('tarifas.index');
     Route::get('tasas', [TasaController::class, 'index'])->name('tasas.index');
+
+    Route::prefix('tesoreria')->group(function () {
+        Route::get('cuentas', [CuentaController::class, 'index'])->name('tesoreria.cuentas.index');
+    });
 });
+
+
+
 
 /*
 |--------------------------------------------------------------------------
