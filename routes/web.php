@@ -65,7 +65,9 @@ Route::middleware(['auth', 'role:admin'])->prefix('parametros')->group(function 
 
     });
 });
-
+Route::get('odontograma', function(){
+    return view('odontograma');
+});
 
 
 

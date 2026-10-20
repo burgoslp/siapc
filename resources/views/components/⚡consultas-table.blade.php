@@ -259,11 +259,19 @@ new class extends Component
                         @forelse ($atendidas as $consulta)
                             <tr wire:key="aten-{{ $consulta->id }}" class="hover:bg-gray-50 transition">
                                 <td class="px-4 py-3 whitespace-nowrap">
-                                    <span class="inline-flex items-center text-green-600" title="Completada">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                        </svg>
-                                    </span>
+                                    <div class="flex items-center gap-1">
+                                        <span class="inline-flex items-center text-green-600" title="Completada">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                            </svg>
+                                        </span>
+                                        @if ($consulta->fue_editada)
+                                            <span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-700"
+                                                title="Editada el {{ $consulta->editada_en->format('d/m/Y h:i A') }} por {{ $consulta->editor?->username ?? '—' }}">
+                                                Editada
+                                            </span>
+                                        @endif
+                                    </div>
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="font-medium text-gray-800">{{ $consulta->created_at->format('d/m/Y') }}</div>
@@ -305,8 +313,8 @@ new class extends Component
                                 <td class="px-4 py-3 text-right whitespace-nowrap">
                                     <div class="inline-flex items-center space-x-1">
                                         <a href="{{ route('pacientes.show', $consulta->paciente_id) }}"
-                                           title="Ver paciente"
-                                           class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md">
+                                        title="Ver paciente"
+                                        class="p-1.5 text-blue-600 hover:bg-blue-50 rounded-md">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>

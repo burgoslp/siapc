@@ -15,8 +15,14 @@ class Consulta extends Model
 
     protected $casts = [
         'reposo_fecha_inicio' => 'date',
-        'reposo_fecha_fin' => 'date',
+        'reposo_fecha_fin'    => 'date',
+        'editada_en'          => 'datetime',
     ];
+
+    /**
+     * Ventana de edición en horas (configurable).
+     */
+    public const VENTANA_EDICION_HORAS = 24;
 
     public function cita(): BelongsTo
     {
@@ -33,19 +39,60 @@ class Consulta extends Model
         return $this->belongsTo(Medico::class, 'medico_id');
     }
 
-    /**
-     * IMC calculado (peso / altura²)
-     */
-    public function getImcAttribute(): ?float
+    public function editor(): BelongsTo
     {
-        if (!$this->peso || !$this->altura) return null;
+        return $this->belongsTo(User::class, 'editada_por');
+    }
 
-        return round($this->peso / ($this->altura ** 2), 2);
+    // ============================================================
+    // HELPERS DE AUDITORÍA
+    // ============================================================
+
+    /**
+     * ¿La consulta está dentro de la ventana de edición?
+     */
+    public function getDentroDeVentanaEdicionAttribute(): bool
+    {
+        return $this->created_at->diffInHours(now()) < self::VENTANA_EDICION_HORAS;
     }
 
     /**
-     * Clasificación del IMC según la OMS
+     * ¿La consulta ya fue editada alguna vez?
      */
+    public function getFueEditadaAttribute(): bool
+    {
+        return $this->editada_en !== null;
+    }
+
+    /**
+     * ¿El usuario actual puede editar esta consulta?
+     * - Admin: siempre puede.
+     * - Médico: solo el creador Y dentro de la ventana.
+     * - Otros: no.
+     */
+    public function puedeSerEditadaPor(?User $user): bool
+    {
+        if (!$user) return false;
+
+        if ($user->esAdmin()) return true;
+
+        if ($user->esMedico() && $user->medico?->id === $this->medico_id) {
+            return $this->dentro_de_ventana_edicion;
+        }
+
+        return false;
+    }
+
+    // ============================================================
+    // ACCESORES CLÍNICOS (existentes)
+    // ============================================================
+
+    public function getImcAttribute(): ?float
+    {
+        if (!$this->peso || !$this->altura) return null;
+        return round($this->peso / ($this->altura ** 2), 2);
+    }
+
     public function getImcClasificacionAttribute(): ?string
     {
         $imc = $this->imc;
@@ -61,21 +108,14 @@ class Consulta extends Model
         };
     }
 
-    /**
-     * Tensión arterial formateada: "120/80 mmHg"
-     */
     public function getTensionFormateadaAttribute(): ?string
     {
         if (!$this->tension_sistolica || !$this->tension_diastolica) {
             return null;
         }
-
         return "{$this->tension_sistolica}/{$this->tension_diastolica} mmHg";
     }
 
-    /**
-     * Clasificación de la tensión (según guías AHA)
-     */
     public function getTensionClasificacionAttribute(): ?string
     {
         $sis = $this->tension_sistolica;
@@ -93,9 +133,6 @@ class Consulta extends Model
         };
     }
 
-    /**
-     * Temperatura clasificada
-     */
     public function getTemperaturaClasificacionAttribute(): ?string
     {
         $temp = $this->temperatura;

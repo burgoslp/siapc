@@ -20,7 +20,11 @@
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         [x-cloak] { display: none !important; }
     </style>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @vite([
+    'resources/css/app.css',
+    'resources/js/app.js',
+    'resources/js/odontograma.js',
+    ])
     @livewireStyles
     @stack('styles')
 </head>
