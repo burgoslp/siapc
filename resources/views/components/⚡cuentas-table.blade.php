@@ -33,6 +33,7 @@ new class extends Component
 
     #[On('cuenta-guardada')]
     #[On('transferencia-registrada')]
+    #[On('movimiento-registrado')]
     public function refrescar(): void {}
 
     public function with(): array
@@ -298,14 +299,24 @@ new class extends Component
                                 class="text-xs font-medium {{ $cuenta->activa ? 'text-gray-500 hover:text-red-600' : 'text-teal-600 hover:text-teal-700' }}">
                             {{ $cuenta->activa ? 'Desactivar' : 'Activar' }}
                         </button>
-                        <button type="button"
-                                onclick="Livewire.dispatch('nuevo-movimiento', { cuentaOrigenId: {{ $cuenta->id }} })"
-                                class="text-xs font-medium text-cyan-600 hover:text-cyan-700 inline-flex items-center">
-                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
-                            </svg>
-                            Transferir
-                        </button>
+                        <div class="flex items-center gap-3">
+                            <a href="{{ route('tesoreria.movimientos.index', ['cuentaId' => $cuenta->id]) }}"
+                            class="text-xs font-medium text-slate-600 hover:text-slate-800 inline-flex items-center">
+                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                                </svg>
+                                Ver movimientos
+                            </a>
+
+                            <button type="button"
+                                    onclick="Livewire.dispatch('nuevo-movimiento', { cuentaOrigenId: {{ $cuenta->id }} })"
+                                    class="text-xs font-medium text-cyan-600 hover:text-cyan-700 inline-flex items-center">
+                                <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                                </svg>
+                                Nuevo Movimiento
+                            </button>
+                        </div>
                     </div>
                 </div>
             @endforeach

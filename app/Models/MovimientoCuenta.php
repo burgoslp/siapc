@@ -117,7 +117,7 @@ class MovimientoCuenta extends Model
             'tipo' => $tipo,
             'origen_tipo' => $origenTipo,
             'origen_id' => $origenId,
-            'transferencia_id' => $movimientoEntreCuentaId,
+            'movimiento_entre_cuenta_id' => $movimientoEntreCuentaId,
             'monto' => $monto,
             'saldo_despues' => round($nuevoSaldo, 2),
             'fecha' => now(),

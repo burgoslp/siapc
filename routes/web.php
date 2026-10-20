@@ -13,6 +13,7 @@ use App\Http\Controllers\TasaController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FacturacionController;
 use App\Http\Controllers\CuentaController;
+use App\Http\Controllers\MovimientoEntreCuentaController;
 /*
 |--------------------------------------------------------------------------
 | Rutas autenticadas (cualquier rol)
@@ -40,6 +41,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('facturacion/pagos', [FacturacionController::class, 'pagos'])->name('facturacion.pagos');
     Route::get('facturacion/cajas', [FacturacionController::class, 'cajas'])->name('facturacion.cajas');
     Route::get('facturacion/cajas/{caja}', [FacturacionController::class, 'cajaDetalle'])->name('facturacion.cajas.detalle');
+
 });
 
 /*
@@ -59,6 +61,8 @@ Route::middleware(['auth', 'role:admin'])->prefix('parametros')->group(function 
 
     Route::prefix('tesoreria')->group(function () {
         Route::get('cuentas', [CuentaController::class, 'index'])->name('tesoreria.cuentas.index');
+        Route::get('movimientos', [MovimientoEntreCuentaController::class, 'index'])->name('tesoreria.movimientos.index');
+
     });
 });
 
