@@ -90,5 +90,22 @@ class Paciente extends Model
     {
         return $this->hasMany(Consulta::class, 'paciente_id');
     }
+
+
+    public function getTipoDenticionAttribute(): string
+    {
+        if (!$this->fecha_nacimiento) return 'permanente';
+        
+        $edad = $this->fecha_nacimiento->age;
+
+        // 0 a 5 años: Dentición Temporal (Infantil/Bebés)
+        if ($edad <= 5) return 'infantil';
+        
+        // 6 a 12 años: Dentición Mixta (Tiene dientes de ambos)
+        if ($edad <= 12) return 'mixto';
+        
+        // 13+ años: Dentición Permanente
+        return 'permanente';
+    }
         
 }

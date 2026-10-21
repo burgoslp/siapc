@@ -43,6 +43,8 @@ new class extends Component
     // Odontograma (espejo del hijo)
     public array $datosOdontograma = [];
     public bool $odontogramaModificado = false;
+    public ?string $tipoOdontograma = 'permanente'; 
+
 
     #[On('abrir-consulta-form')]
     public function abrir(int $citaId): void
@@ -63,6 +65,7 @@ new class extends Component
 
             $this->dentroDeVentana = $existente->dentro_de_ventana_edicion;
             $this->soloLectura = !$existente->puedeSerEditadaPor(auth()->user());
+            
         } else {
             $this->motivo = $this->cita->motivo ?? '';
         }
@@ -110,10 +113,12 @@ new class extends Component
         }
     }
 
+
     #[On('odontograma-sincronizado')]
-    public function sincronizarOdontograma(array $datos): void
+    public function sincronizarOdontograma(array $datos, string $tipo = 'permanente'): void
     {
         $this->datosOdontograma = $datos;
+        $this->tipoOdontograma = $tipo;
         $this->odontogramaModificado = true;
     }
 
@@ -193,7 +198,8 @@ new class extends Component
                 Odontograma::create([
                     'paciente_id' => $this->cita->paciente_id,
                     'consulta_id' => $consulta->id,
-                    'datos'       => $this->datosOdontograma,
+                    'tipo' => $this->tipoOdontograma,
+                    'datos' => $this->datosOdontograma,
                 ]);
             }
         }

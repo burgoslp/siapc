@@ -53,7 +53,14 @@ class Consulta extends Model
      */
     public function getDentroDeVentanaEdicionAttribute(): bool
     {
-        return $this->created_at->diffInHours(now()) < self::VENTANA_EDICION_HORAS;
+        // Si la consulta no tiene fecha de creación, por seguridad bloqueamos la edición
+        if (!$this->created_at) return false;
+
+        // Calculamos la fecha límite sumando las horas de la ventana a la fecha de creación
+        $fechaLimite = $this->created_at->copy()->addHours(self::VENTANA_EDICION_HORAS);
+
+        // Comparamos si la fecha actual es menor a la fecha límite
+        return now()->lessThan($fechaLimite);
     }
 
     /**

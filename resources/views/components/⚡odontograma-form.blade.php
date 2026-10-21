@@ -9,14 +9,18 @@ new class extends Component
     public $consultaId = null;
     public bool $soloLectura = false;
 
+    public string $tipoOdontograma = 'permanente';
     public $datosOdontograma = [];
     public $datosGuardados = null;
 
+    // Variables para el panel de registro
     public $dienteSeleccionado = '';
     public $superficieSeleccionada = 'vestibular';
     public $estadoSeleccionado = 'SANO';
     public $modoDienteCompleto = false;
-
+    public $notaSeleccionada = '';
+    public $notaGeneral = '';
+       
     public array $estadosSuperficie = [
         'SANO' => 'Sano',
         'CARIES' => 'Caries',
@@ -37,11 +41,47 @@ new class extends Component
 
     public array $superficies = ['vestibular', 'mesial', 'distal', 'lingual', 'oclusal'];
 
+    // Cuadrantes FDI
+    public array $cuadrantes = [
+        // Permanentes
+        'superior_derecha'  => [18, 17, 16, 15, 14, 13, 12, 11],
+        'superior_izquierda'=> [21, 22, 23, 24, 25, 26, 27, 28],
+        'inferior_derecha'  => [48, 47, 46, 45, 44, 43, 42, 41],
+        'inferior_izquierda'=> [31, 32, 33, 34, 35, 36, 37, 38],
+        
+        // Temporales (Niños)
+        'sup_der_inf' => [55, 54, 53, 52, 51],
+        'sup_izq_inf' => [61, 62, 63, 64, 65],
+        'inf_izq_inf' => [85, 84, 83, 82, 81],
+        'inf_der_inf' => [71, 72, 73, 74, 75],
+    ];
+
+  
+    // Mapeo de nombres de dientes para las imágenes
+    public array $nombresDientes = [
+        18 => 'tercer_molar', 17 => 'segundo_molar', 16 => 'primer_molar',
+        15 => 'segundo_premolar', 14 => 'primer_premolar', 13 => 'canino',
+        12 => 'incisivo_lateral', 11 => 'incisivo_central',
+        21 => 'incisivo_central', 22 => 'incisivo_lateral', 23 => 'canino',
+        24 => 'primer_premolar', 25 => 'segundo_premolar', 26 => 'primer_molar',
+        27 => 'segundo_molar', 28 => 'tercer_molar',
+        48 => 'tercer_molar', 47 => 'segundo_molar', 46 => 'primer_molar',
+        45 => 'segundo_premolar', 44 => 'primer_premolar', 43 => 'canino',
+        42 => 'incisivo_lateral', 41 => 'incisivo_central',
+        31 => 'incisivo_central', 32 => 'incisivo_lateral', 33 => 'canino',
+        34 => 'primer_premolar', 35 => 'segundo_premolar', 36 => 'primer_molar',
+        37 => 'segundo_molar', 38 => 'tercer_molar',
+    ];
+
     public function mount($pacienteId, $consultaId = null, $soloLectura = false): void
     {
         $this->pacienteId = $pacienteId;
         $this->consultaId = $consultaId;
         $this->soloLectura = $soloLectura;
+        $paciente = \App\Models\Paciente::find($pacienteId);
+        $this->tipoOdontograma = $paciente->tipo_denticion ?? 'permanente';
+
+            
 
         $registro = null;
 
@@ -61,30 +101,123 @@ new class extends Component
         if ($registro) {
             $this->datosGuardados = $registro->datos;
             $this->datosOdontograma = $registro->datos;
+            $this->tipoOdontograma = $registro->tipo ?? $this->tipoOdontograma;
         } else {
             $this->inicializarOdontograma();
         }
+
+       
+    }
+
+    // Método para cambiar de vista manualmente
+    public function cambiarVista(string $tipo): void
+    {
+        $this->tipoOdontograma = $tipo;
+        
+        // Inicializar dientes que no existan en el array (por si pasa de adulto a niño)
+        $this->inicializarOdontograma(); 
     }
 
     private function inicializarOdontograma(): void
     {
+        // Juntamos todos los dientes posibles (adultos y niños)
         $dientes = [
             18, 17, 16, 15, 14, 13, 12, 11,
             21, 22, 23, 24, 25, 26, 27, 28,
             48, 47, 46, 45, 44, 43, 42, 41,
             31, 32, 33, 34, 35, 36, 37, 38,
+            55, 54, 53, 52, 51, 61, 62, 63, 64, 65,
+            85, 84, 83, 82, 81, 71, 72, 73, 74, 75,
         ];
 
         foreach ($dientes as $diente) {
-            $this->datosOdontograma[$diente] = [
-                'general' => null,
-                'superficies' => array_fill_keys($this->superficies, 'SANO'),
-            ];
+            // Solo inicializamos si no existe, para no borrar datos al cambiar de vista
+            if (!isset($this->datosOdontograma[$diente])) {
+                $this->datosOdontograma[$diente] = [
+                    'general' => null,
+                    'superficies' => array_fill_keys($this->superficies, ['estado' => 'SANO', 'nota' => '']),
+                ];
+            }
         }
+    }
+    
+    /**
+     * Genera la ruta de la imagen basada en la nomenclatura exacta
+     */
+    public function getRutaImagen(int $diente, string $superficie): string
+    {
+        // 1. Determinar el cuadrante
+        $cuadrante = 'cuadrante_1';
+        if ($diente >= 20 && $diente <= 28) $cuadrante = 'cuadrante_2';
+        if ($diente >= 30 && $diente <= 38) $cuadrante = 'cuadrante_3';
+        if ($diente >= 40 && $diente <= 48) $cuadrante = 'cuadrante_4';
+        
+        // Cuadrantes infantiles
+        if ($diente >= 50 && $diente <= 55) $cuadrante = 'cuadrante_5';
+        if ($diente >= 60 && $diente <= 65) $cuadrante = 'cuadrante_6';
+        if ($diente >= 80 && $diente <= 85) $cuadrante = 'cuadrante_8'; // Ojo: 8 es abajo izq
+        if ($diente >= 70 && $diente <= 75) $cuadrante = 'cuadrante_7'; // Ojo: 7 es abajo der
+
+        // 2. Obtener el nombre del diente (Agregamos los nombres infantiles)
+        $nombresInfantiles = [
+            55 => 'segundo_molar', 54 => 'primer_molar', 53 => 'canino', 52 => 'incisivo_lateral', 51 => 'incisivo_central',
+            65 => 'segundo_molar', 64 => 'primer_molar', 63 => 'canino', 62 => 'incisivo_lateral', 61 => 'incisivo_central',
+            85 => 'segundo_molar', 84 => 'primer_molar', 83 => 'canino', 82 => 'incisivo_lateral', 81 => 'incisivo_central',
+            75 => 'segundo_molar', 74 => 'primer_molar', 73 => 'canino', 72 => 'incisivo_lateral', 71 => 'incisivo_central',
+        ];
+
+        $nombreDiente = $this->nombresDientes[$diente] ?? $nombresInfantiles[$diente] ?? 'desconocido';
+
+        // 3. Armar el nombre del archivo
+        $nombreArchivo = "{$diente}_{$nombreDiente}_{$superficie}.png";
+
+        // 4. Retornar ruta completa
+        return "images/odontograma/dientes/{$cuadrante}/{$diente}/{$nombreArchivo}";
     }
 
     // ============================================================
-    // APLICAR HALLAZGOS
+    // CLIC DIRECTO EN EL MAPA (NUEVO)
+    // ============================================================
+
+    public function aplicarSuperficie(int $diente, string $superficie): void
+    {
+        if ($this->soloLectura) return;
+
+        if (in_array($superficie, $this->superficies) && isset($this->datosOdontograma[$diente])) {
+            $this->datosOdontograma[$diente]['superficies'][$superficie] = [
+                'estado' => $this->estadoSeleccionado,
+                'nota' => $this->notaSeleccionada
+            ];
+            
+            if ($this->datosOdontograma[$diente]['general'] === 'EXTRAIDO' || $this->datosOdontograma[$diente]['general'] === 'SANO') {
+                $this->datosOdontograma[$diente]['general'] = null;
+            }
+            
+            $this->notificarAlPadre();
+        }
+    }
+
+    public function aplicarDienteCompleto(int $diente): void
+    {
+        if ($this->soloLectura) return;
+        if (!isset($this->datosOdontograma[$diente])) return;
+
+        $this->datosOdontograma[$diente]['general'] = [
+            'estado' => $this->estadoSeleccionado,
+            'nota' => $this->notaGeneral
+        ];
+
+        if (in_array($this->estadoSeleccionado, ['SANO', 'EXTRAIDO'])) {
+            foreach ($this->superficies as $sup) {
+                $this->datosOdontograma[$diente]['superficies'][$sup] = ['estado' => 'SANO', 'nota' => ''];
+            }
+        }
+
+        $this->notificarAlPadre();
+    }
+
+    // ============================================================
+    // APLICAR DESDE EL PANEL DE REGISTRO
     // ============================================================
 
     public function aplicar(): void
@@ -99,29 +232,15 @@ new class extends Component
         $diente = $this->dienteSeleccionado;
 
         if ($this->modoDienteCompleto) {
-            $this->datosOdontograma[$diente]['general'] = $this->estadoSeleccionado;
-            if ($this->estadoSeleccionado === 'SANO') {
-                foreach ($this->superficies as $sup) {
-                    $this->datosOdontograma[$diente]['superficies'][$sup] = 'SANO';
-                }
-            }
+            $this->aplicarDienteCompleto((int)$diente);
         } else {
-            $this->datosOdontograma[$diente]['superficies'][$this->superficieSeleccionada] = $this->estadoSeleccionado;
-            $this->datosOdontograma[$diente]['general'] = null;
+            $this->aplicarSuperficie((int)$diente, $this->superficieSeleccionada);
         }
-
-        $this->dispatch('odontograma-actualizado',
-            datos: $this->datosOdontograma,
-            elementId: "odontograma-{$this->pacienteId}"
-        );
-
-        $this->notificarAlPadre();
     }
 
     public function aplicarATodasLasSuperficies(): void
     {
         if ($this->soloLectura) return;
-
         if (empty($this->dienteSeleccionado)) {
             session()->flash('error', 'Selecciona un diente primero.');
             return;
@@ -134,228 +253,230 @@ new class extends Component
         }
 
         $this->datosOdontograma[$diente]['general'] = null;
-
-        $this->dispatch('odontograma-actualizado',
-            datos: $this->datosOdontograma,
-            elementId: "odontograma-{$this->pacienteId}"
-        );
-
         $this->notificarAlPadre();
     }
 
     // ============================================================
-    // QUITAR HALLAZGOS (NUEVO)
+    // QUITAR HALLAZGOS
     // ============================================================
 
-    /**
-     * Quita un hallazgo de una superficie específica (la vuelve a SANO).
-     */
     public function quitarHallazgo(int $diente, string $superficie): void
     {
         if ($this->soloLectura) return;
-
         if (isset($this->datosOdontograma[$diente]['superficies'][$superficie])) {
-            $this->datosOdontograma[$diente]['superficies'][$superficie] = 'SANO';
-
-            // Si ya no queda ningún hallazgo en el diente, limpiamos el estado general
-            if (empty($this->datosOdontograma[$diente]['general'])
-                && $this->dienteEstaSano((int) $diente)) {
-                $this->datosOdontograma[$diente]['general'] = null;
-            }
-
-            $this->sincronizarVisual();
+            $this->datosOdontograma[$diente]['superficies'][$superficie] = ['estado' => 'SANO', 'nota' => ''];
+            $this->notificarAlPadre();
         }
     }
 
-    /**
-     * Quita el estado general de un diente (corona, endodoncia, etc.).
-     */
     public function quitarEstadoGeneral(int $diente): void
     {
         if ($this->soloLectura) return;
-
         if (isset($this->datosOdontograma[$diente])) {
             $this->datosOdontograma[$diente]['general'] = null;
-            $this->sincronizarVisual();
+            $this->notificarAlPadre();
         }
     }
 
-    /**
-     * Quita TODOS los hallazgos de un diente (lo deja completamente sano).
-     */
     public function limpiarDiente(int $diente): void
     {
         if ($this->soloLectura) return;
-
         if (isset($this->datosOdontograma[$diente])) {
             $this->datosOdontograma[$diente] = [
                 'general' => null,
-                'superficies' => array_fill_keys($this->superficies, 'SANO'),
+                'superficies' => array_fill_keys($this->superficies, ['estado' => 'SANO', 'nota' => '']),
             ];
-
-            $this->sincronizarVisual();
+            $this->notificarAlPadre();
         }
-    }
-
-    private function dienteEstaSano(int $diente): bool
-    {
-        $dato = $this->datosOdontograma[$diente] ?? null;
-        if (!$dato) return true;
-
-        if (!empty($dato['general']) && $dato['general'] !== 'SANO') {
-            return false;
-        }
-
-        foreach ($dato['superficies'] ?? [] as $estado) {
-            if ($estado !== 'SANO') return false;
-        }
-
-        return true;
-    }
-
-    private function sincronizarVisual(): void
-    {
-        $this->dispatch('odontograma-actualizado',
-            datos: $this->datosOdontograma,
-            elementId: "odontograma-{$this->pacienteId}"
-        );
-
-        $this->notificarAlPadre();
     }
 
     private function notificarAlPadre(): void
     {
-        $this->dispatch('odontograma-sincronizado', datos: $this->datosOdontograma)->to('consultas-form');
+        $this->dispatch('odontograma-sincronizado', 
+            datos: $this->datosOdontograma,
+            tipo: $this->tipoOdontograma // <--- Agregar esto
+        )->to('consultas-form');
     }
 
     // ============================================================
-    // LISTADO DE HALLAZGOS (derivado del JSON)
+    // HELPERS VISUALES
     // ============================================================
 
-    /**
-     * Devuelve un array plano de hallazgos para renderizar en la tabla.
-     * Formato: [
-     *   ['tipo' => 'general', 'diente' => 11, 'superficie' => null, 'estado' => 'CORONA'],
-     *   ['tipo' => 'superficie', 'diente' => 12, 'superficie' => 'vestibular', 'estado' => 'CARIES'],
-     * ]
-     */
+    public function colorEstado(string $estado): string
+    {
+        return match($estado) {
+            'SANO' => 'transparent',
+            'CARIES' => 'rgba(239, 68, 68, 0.7)',
+            'OBTURADO' => 'rgba(59, 130, 246, 0.7)',
+            'FRACTURA' => 'rgba(249, 115, 22, 0.7)',
+            'EXTRACCION_INDICADA' => 'rgba(234, 179, 8, 0.7)',
+            'CORONA' => 'rgba(168, 85, 247, 0.8)',
+            'ENDODONCIA' => 'rgba(139, 92, 246, 0.8)',
+            'IMPLANTE' => 'rgba(14, 165, 233, 0.8)',
+            'EXTRAIDO' => 'rgba(55, 65, 81, 0.9)',
+            'PUENTE' => 'rgba(34, 197, 94, 0.8)',
+            default => 'transparent',
+        };
+    }
+
+    // ============================================================
+    // LISTADO DE HALLAZGOS
+    // ============================================================
+
     public function getHallazgosProperty(): array
     {
         $hallazgos = [];
 
         foreach ($this->datosOdontograma as $diente => $dato) {
-            // Estados generales (corona, endodoncia, extraído, etc.)
-            if (!empty($dato['general']) && $dato['general'] !== 'SANO') {
+            // Validar general (compatibilidad con JSON antiguo que era string)
+            $g = $dato['general'] ?? null;
+            $estadoGeneral = is_array($g) ? ($g['estado'] ?? null) : $g;
+            $notaGeneral = is_array($g) ? ($g['nota'] ?? '') : '';
+
+            if (!empty($estadoGeneral) && $estadoGeneral !== 'SANO') {
                 $hallazgos[] = [
-                    'tipo' => 'general',
-                    'diente' => (int) $diente,
-                    'superficie' => null,
-                    'estado' => $dato['general'],
+                    'tipo' => 'general', 'diente' => (int) $diente, 'superficie' => null,
+                    'estado' => $estadoGeneral, 'nota' => $notaGeneral,
                 ];
-                continue; // Si hay estado general, no mostrar superficies
+                continue;
             }
 
-            // Estados por superficie
-            foreach ($dato['superficies'] ?? [] as $sup => $estado) {
+            // Validar superficies (compatibilidad)
+            foreach ($dato['superficies'] ?? [] as $sup => $val) {
+                $estado = is_array($val) ? ($val['estado'] ?? 'SANO') : $val;
+                $nota = is_array($val) ? ($val['nota'] ?? '') : '';
+
                 if ($estado !== 'SANO') {
                     $hallazgos[] = [
-                        'tipo' => 'superficie',
-                        'diente' => (int) $diente,
-                        'superficie' => $sup,
-                        'estado' => $estado,
+                        'tipo' => 'superficie', 'diente' => (int) $diente, 'superficie' => $sup,
+                        'estado' => $estado, 'nota' => $nota,
                     ];
                 }
             }
         }
-
-        // Ordenar por diente ascendente
         usort($hallazgos, fn($a, $b) => $a['diente'] <=> $b['diente']);
-
         return $hallazgos;
-    }
-
-    public function getTotalHallazgosProperty(): int
-    {
-        return count($this->hallazgos);
     }
 
     public function with(): array
     {
+        $hallazgos = $this->hallazgos;
+
+        // Obtenemos los dientes según la vista actual
+        $dientesVista = [];
+        if ($this->tipoOdontograma === 'infantil') {
+            $dientesVista = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65, 85, 84, 83, 82, 81, 71, 72, 73, 74, 75];
+        } elseif ($this->tipoOdontograma === 'permanente') {
+            $dientesVista = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38];
+        } else {
+            // Mixto: todos
+            $dientesVista = [18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38, 55, 54, 53, 52, 51, 61, 62, 63, 64, 65, 85, 84, 83, 82, 81, 71, 72, 73, 74, 75];
+        }
+
         return [
-            'dientes' => [
-                18, 17, 16, 15, 14, 13, 12, 11,
-                21, 22, 23, 24, 25, 26, 27, 28,
-                48, 47, 46, 45, 44, 43, 42, 41,
-                31, 32, 33, 34, 35, 36, 37, 38,
-            ],
-            'hallazgos' => $this->hallazgos,
-            'totalHallazgos' => $this->totalHallazgos,
+            'dientes' => $dientesVista,
+            'hallazgos' => $hallazgos,
+            'totalHallazgos' => count($hallazgos),
         ];
     }
 };
 ?>
 
-<div
-    class="space-y-4"
-    x-data="{
-        pacienteId: {{ $pacienteId }},
-        datosLivewire: @js($datosOdontograma),
-        init() {
-            this.$nextTick(() => {
-                setTimeout(() => {
-                    const el = document.getElementById('odontograma-' + this.pacienteId);
-                    if (el) {
-                        window.initOdontograma('odontograma-' + this.pacienteId, this.datosLivewire);
-                    }
-                }, 200);
-            });
-        }
-    }"
-    x-init="init()"
-    @odontograma-actualizado.window="
-        if ($event.detail.elementId === 'odontograma-' + pacienteId || !$event.detail.elementId) {
-            window.refrescarOdontograma('odontograma-' + pacienteId, $event.detail.datos);
-        }
-    "
->
+<div class="space-y-4">
 
     {{-- ============================================ --}}
-    {{-- 1. ODONTOGRAMA VISUAL --}}
+    {{-- ODONTOGRAMA VISUAL CON IMÁGENES --}}
     {{-- ============================================ --}}
-    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <div class="flex items-center justify-between mb-3">
-            <div>
-                <h3 class="text-sm font-bold text-gray-800">Odontograma</h3>
-                <p class="text-xs text-gray-500">
-                    @if ($soloLectura)
-                        Solo lectura
-                    @else
-                        Haz clic en las superficies del diente para marcarlas
-                    @endif
-                </p>
-            </div>
-            @if ($totalHallazgos > 0)
-                <span class="px-3 py-1 text-xs font-semibold rounded-full bg-teal-100 text-teal-700">
-                    {{ $totalHallazgos }} {{ $totalHallazgos === 1 ? 'hallazgo' : 'hallazgos' }}
-                </span>
-            @endif
-        </div>
-
-        <div wire:ignore class="flex justify-center" style="overflow-x: auto;">
-            <div id="odontograma-container-{{ $pacienteId }}"
-                 style="zoom: 0.7; min-width: 900px;">
-                <og-odontogram
-                    id="odontograma-{{ $pacienteId }}"
-                    mode="adult"
-                    notation="fdi"
-                    style="width: 100%; min-height: 200px; display: block;">
-                </og-odontogram>
-            </div>
+    <div class="flex justify-end mb-2">
+        <div class="flex bg-gray-100 p-1 rounded-lg text-xs">
+            <button wire:click="cambiarVista('infantil')" 
+                    class="px-3 py-1 rounded-md {{ $tipoOdontograma === 'infantil' ? 'bg-white shadow text-teal-700 font-bold' : 'text-gray-500' }}">
+                Temporal
+            </button>
+            <button wire:click="cambiarVista('mixto')" 
+                    class="px-3 py-1 rounded-md {{ $tipoOdontograma === 'mixto' ? 'bg-white shadow text-teal-700 font-bold' : 'text-gray-500' }}">
+                Mixto
+            </button>
+            <button wire:click="cambiarVista('permanente')" 
+                    class="px-3 py-1 rounded-md {{ $tipoOdontograma === 'permanente' ? 'bg-white shadow text-teal-700 font-bold' : 'text-gray-500' }}">
+                Permanente
+            </button>
         </div>
     </div>
 
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+        
+        {{-- ARCADA SUPERIOR PERMANENTE --}}
+        @if($tipoOdontograma === 'permanente' || $tipoOdontograma === 'mixto')
+        <div class="flex justify-center gap-2 {{ $tipoOdontograma === 'mixto' ? 'mb-2' : 'mb-4' }} min-w-max">
+            <div class="flex gap-1">
+                @foreach ($cuadrantes['superior_derecha'] as $diente)
+                    @include('components.partials.diente-mapa', ['diente' => $diente, 'espejo' => false])
+                @endforeach
+            </div>
+            <div class="w-px bg-gray-300 mx-2"></div>
+            <div class="flex gap-1">
+                @foreach ($cuadrantes['superior_izquierda'] as $diente)
+                    @include('components.partials.diente-mapa', ['diente' => $diente, 'espejo' => true])
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        {{-- ARCADA SUPERIOR TEMPORAL (Solo si es infantil o mixto) --}}
+        @if($tipoOdontograma === 'infantil' || $tipoOdontograma === 'mixto')
+        <div class="flex justify-center gap-2 mb-4 min-w-max opacity-80">
+            <div class="flex gap-1">
+                @foreach ($cuadrantes['sup_der_inf'] as $diente)
+                    @include('components.partials.diente-mapa', ['diente' => $diente, 'espejo' => false])
+                @endforeach
+            </div>
+            <div class="w-px bg-gray-300 mx-2"></div>
+            <div class="flex gap-1">
+                @foreach ($cuadrantes['sup_izq_inf'] as $diente)
+                    @include('components.partials.diente-mapa', ['diente' => $diente, 'espejo' => true])
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        {{-- ARCADA INFERIOR TEMPORAL (Solo si es infantil o mixto) --}}
+        @if($tipoOdontograma === 'infantil' || $tipoOdontograma === 'mixto')
+        <div class="flex justify-center gap-2 mb-2 min-w-max opacity-80">
+            <div class="flex gap-1">
+                @foreach ($cuadrantes['inf_der_inf'] as $diente)
+                    @include('components.partials.diente-mapa', ['diente' => $diente, 'espejo' => false])
+                @endforeach
+            </div>
+            <div class="w-px bg-gray-300 mx-2"></div>
+            <div class="flex gap-1">
+                @foreach ($cuadrantes['inf_izq_inf'] as $diente)
+                    @include('components.partials.diente-mapa', ['diente' => $diente, 'espejo' => true])
+                @endforeach
+            </div>
+        </div>
+        @endif
+
+        {{-- ARCADA INFERIOR PERMANENTE --}}
+        @if($tipoOdontograma === 'permanente' || $tipoOdontograma === 'mixto')
+        <div class="flex justify-center gap-2 min-w-max">
+            <div class="flex gap-1">
+                @foreach ($cuadrantes['inferior_derecha'] as $diente)
+                    @include('components.partials.diente-mapa', ['diente' => $diente, 'espejo' => false])
+                @endforeach
+            </div>
+            <div class="w-px bg-gray-300 mx-2"></div>
+            <div class="flex gap-1">
+                @foreach ($cuadrantes['inferior_izquierda'] as $diente)
+                    @include('components.partials.diente-mapa', ['diente' => $diente, 'espejo' => true])
+                @endforeach
+            </div>
+        </div>
+        @endif
+    </div>
+
     {{-- ============================================ --}}
-    {{-- 2. LISTADO DE HALLAZGOS (NUEVO) --}}
+    {{-- LISTADO DE HALLAZGOS --}}
     {{-- ============================================ --}}
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         <div class="px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
@@ -370,10 +491,7 @@ new class extends Component
 
         @if ($totalHallazgos === 0)
             <div class="px-4 py-8 text-center">
-                <svg class="w-10 h-10 mx-auto text-green-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                </svg>
-                <p class="text-sm text-gray-500">Sin hallazgos registrados. Todos los dientes están sanos.</p>
+                <p class="text-sm text-gray-500">Todos los dientes están sanos.</p>
             </div>
         @else
             <div class="overflow-x-auto max-h-64 overflow-y-auto">
@@ -382,71 +500,35 @@ new class extends Component
                         <tr>
                             <th class="px-4 py-2 w-20">Diente</th>
                             <th class="px-4 py-2 w-28">Superficie</th>
+                            <th class="px-4 py-2">Nota</th>
                             <th class="px-4 py-2">Estado</th>
                             <th class="px-4 py-2 text-right w-24">Acciones</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100">
                         @foreach ($hallazgos as $h)
-                            <tr wire:key="hallazgo-{{ $h['diente'] }}-{{ $h['tipo'] }}-{{ $h['superficie'] ?? 'gral' }}" class="hover:bg-gray-50">
-                                <td class="px-4 py-2 font-mono font-semibold text-gray-800">
-                                    {{ $h['diente'] }}
-                                </td>
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-2 font-mono font-semibold text-gray-800">{{ $h['diente'] }}</td>
                                 <td class="px-4 py-2 text-gray-600">
-                                    @if ($h['tipo'] === 'general')
-                                        <span class="italic text-gray-400">(Diente completo)</span>
-                                    @else
-                                        {{ ucfirst($h['superficie']) }}
-                                    @endif
+                                    {{ $h['tipo'] === 'general' ? 'Diente completo' : ucfirst($h['superficie']) }}
+                                </td>
+                                <td class="px-4 py-2 text-gray-600 text-xs italic max-w-xs truncate" title="{{ $h['nota'] }}">
+                                    {{ $h['nota'] ?: '—' }}
                                 </td>
                                 <td class="px-4 py-2">
-                                    @php
-                                        $colores = [
-                                            'CARIES'              => 'bg-red-100 text-red-700',
-                                            'OBTURADO'            => 'bg-blue-100 text-blue-700',
-                                            'FRACTURA'            => 'bg-orange-100 text-orange-700',
-                                            'EXTRACCION_INDICADA' => 'bg-yellow-100 text-yellow-700',
-                                            'CORONA'              => 'bg-purple-100 text-purple-700',
-                                            'ENDODONCIA'          => 'bg-violet-100 text-violet-700',
-                                            'IMPLANTE'            => 'bg-sky-100 text-sky-700',
-                                            'EXTRAIDO'            => 'bg-gray-200 text-gray-700',
-                                            'PUENTE'              => 'bg-green-100 text-green-700',
-                                        ];
-                                        $clase = $colores[$h['estado']] ?? 'bg-gray-100 text-gray-700';
-                                    @endphp
-                                    <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $clase }}">
+                                    <span class="px-2 py-0.5 rounded text-xs font-medium text-white"
+                                          style="background: {{ $this->colorEstado($h['estado']) }}; color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,0.3);">
                                         {{ \App\Models\Odontograma::estadosLegibles()[$h['estado']] ?? $h['estado'] }}
                                     </span>
                                 </td>
                                 <td class="px-4 py-2 text-right">
                                     @unless ($soloLectura)
-                                        <div class="inline-flex gap-1">
-                                            @if ($h['tipo'] === 'general')
-                                                <button wire:click="quitarEstadoGeneral({{ $h['diente'] }})"
-                                                        title="Quitar estado general"
-                                                        class="p-1 text-red-600 hover:bg-red-50 rounded">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                    </svg>
-                                                </button>
-                                            @else
-                                                <button wire:click="quitarHallazgo({{ $h['diente'] }}, '{{ $h['superficie'] }}')"
-                                                        title="Quitar hallazgo"
-                                                        class="p-1 text-red-600 hover:bg-red-50 rounded">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                                                    </svg>
-                                                </button>
-                                            @endif
-
-                                            <button wire:click="limpiarDiente({{ $h['diente'] }})"
-                                                    title="Limpiar todo el diente"
-                                                    class="p-1 text-amber-600 hover:bg-amber-50 rounded">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                                                </svg>
-                                            </button>
-                                        </div>
+                                        <button wire:click="{{ $h['tipo'] === 'general' ? 'quitarEstadoGeneral('. $h['diente'] .')' : 'quitarHallazgo('. $h['diente'] .", '". $h['superficie'] ."')" }}"
+                                                class="p-1 text-red-600 hover:bg-red-50 rounded">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                            </svg>
+                                        </button>
                                     @endunless
                                 </td>
                             </tr>
@@ -458,165 +540,113 @@ new class extends Component
     </div>
 
     {{-- ============================================ --}}
-    {{-- 3. PANEL DE REGISTRO DE HALLAZGOS --}}
+    {{-- PANEL DE REGISTRO DE HALLAZGOS --}}
     {{-- ============================================ --}}
-    <div class="grid grid-row-1 lg:grid-row-3 gap-4">
-
-        {{-- registro --}}
-        <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 {{ $soloLectura ? 'opacity-60 pointer-events-none' : '' }}">
-            <h3 class="text-sm font-bold text-gray-800 mb-4">Registrar Nuevo Hallazgo</h3>
-
-            <div class="space-y-3">
-                {{-- Diente: combobox con búsqueda --}}
-                <div
-                    x-data="{
-                        abierto: false,
-                        busqueda: '',
-                        seleccionado: @entangle('dienteSeleccionado'),
-                        dientes: @js($dientes),
-                        get filtrados() {
-                            if (this.busqueda === '') return this.dientes;
-                            return this.dientes.filter(d => String(d).includes(this.busqueda));
-                        },
-                        seleccionar(d) {
-                            this.seleccionado = String(d);
-                            this.busqueda = '';
-                            this.abierto = false;
-                        },
-                        init() {
-                            this.$watch('seleccionado', () => { this.abierto = false; });
-                        }
-                    }"
-                    @click.away="abierto = false"
-                    class="relative"
-                >
-                    <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Diente</label>
-
-                    <button type="button"
-                            @click="abierto = !abierto"
-                            @if($soloLectura) disabled @endif
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left flex items-center justify-between bg-white hover:border-gray-400 disabled:bg-gray-100">
-                        <span x-text="seleccionado ? 'Diente ' + seleccionado : 'Selecciona un diente'" class="text-gray-700"></span>
-                        <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                        </svg>
-                    </button>
-
-                    <div x-show="abierto"
-                        x-cloak
-                        x-transition
-                        class="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-hidden">
-
-                        <div class="p-2 border-b border-gray-100">
-                            <input type="text"
-                                x-model="busqueda"
-                                placeholder="Buscar diente..."
-                                class="w-full px-2 py-1.5 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-teal-500">
-                        </div>
-
-                        <div class="max-h-44 overflow-y-auto">
-                            <template x-for="d in filtrados" :key="d">
-                                <button type="button"
-                                        @click="seleccionar(d)"
-                                        :class="seleccionado == d ? 'bg-teal-50 text-teal-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'"
-                                        class="w-full px-3 py-2 text-left text-sm">
-                                    Diente <span x-text="d"></span>
-                                </button>
-                            </template>
-                            <template x-if="filtrados.length === 0">
-                                <p class="px-3 py-2 text-xs text-gray-500 text-center">Sin resultados</p>
-                            </template>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Aplicar a --}}
-                <div>
-                    <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Aplicar a</label>
-                    <select wire:model.live="modoDienteCompleto"
-                            @if($soloLectura) disabled @endif
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100">
-                        <option value="0">Superficie</option>
-                        <option value="1">Todo el diente</option>
-                    </select>
-                </div>
-
-                {{-- Superficie --}}
-                <div>
-                    <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Superficie</label>
-                    <select wire:model="superficieSeleccionada"
-                            @if($modoDienteCompleto || $soloLectura) disabled @endif
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100 disabled:text-gray-400">
-                        @foreach ($superficies as $sup)
-                            <option value="{{ $sup }}">{{ ucfirst($sup) }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                {{-- Estado --}}
-                <div>
-                    <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Estado</label>
-                    <select wire:model="estadoSeleccionado"
-                            @if($soloLectura) disabled @endif
-                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100">
-                        @if ($modoDienteCompleto)
-                            @foreach ($estadosGenerales as $key => $label)
-                                <option value="{{ $key }}">{{ $label }}</option>
-                            @endforeach
-                        @else
-                            @foreach ($estadosSuperficie as $key => $label)
-                                <option value="{{ $key }}">{{ $label }}</option>
-                            @endforeach
-                        @endif
-                    </select>
-                </div>
+    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 {{ $soloLectura ? 'opacity-60 pointer-events-none' : '' }}">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h3 class="text-sm font-bold text-gray-800">Registrar Hallazgo</h3>
+                <p class="text-xs text-gray-500 mt-0.5">Selecciona los datos y pulsa "Aplicar", o haz clic directo en el diente del mapa.</p>
             </div>
-
-            @unless ($soloLectura)
-                <div class="flex flex-col gap-2 mt-4 pt-3 border-t border-gray-100">
-                    <button wire:click="aplicar" type="button"
-                            class="w-full px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 inline-flex items-center justify-center">
-                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                        </svg>
-                        Aplicar {{ $modoDienteCompleto ? 'al diente' : 'a la superficie' }}
-                    </button>
-
-                    @if (!$modoDienteCompleto)
-                        <button wire:click="aplicarATodasLasSuperficies" type="button"
-                                class="w-full px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 inline-flex items-center justify-center">
-                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
-                            </svg>
-                            Aplicar a TODAS las superficies
-                        </button>
-                    @endif
-                </div>
-            @endunless
+            {{-- Indicador de qué color se aplicará al hacer clic directo --}}
+            <div class="hidden sm:flex items-center gap-2 text-xs">
+                <span class="text-gray-500">Aplicando:</span>
+                <span class="px-2.5 py-1 rounded-md font-medium text-white shadow-sm"
+                      style="background: {{ $this->colorEstado($estadoSeleccionado) }}; text-shadow: 0 1px 1px rgba(0,0,0,0.2);">
+                    {{ $modoDienteCompleto ? ($estadosGenerales[$estadoSeleccionado] ?? 'Sano') : ($estadosSuperficie[$estadoSeleccionado] ?? 'Sano') }}
+                </span>
+            </div>
         </div>
 
-        <div class="lg:col-span-1 bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-            <p class="text-xs font-semibold text-gray-600 uppercase mb-3">Leyenda</p>
-            <div class="space-y-1.5 text-xs">
-                <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded bg-red-500"></span>
-                    <span class="text-gray-600">Superficie con hallazgo</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span class="w-3 h-3 rounded bg-gray-200"></span>
-                    <span class="text-gray-600">Superficie sana</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {{-- Diente combobox --}}
+            <div x-data="{
+                    abierto: false, 
+                    busqueda: '', 
+                    seleccionado: @entangle('dienteSeleccionado'), 
+                    dientes: @js($dientes),
+                    get filtrados() { return this.busqueda === '' ? this.dientes : this.dientes.filter(d => String(d).includes(this.busqueda)); },
+                    seleccionar(d) { this.seleccionado = String(d); this.busqueda = ''; this.abierto = false; }
+                }" @click.away="abierto = false" class="relative">
+                
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Diente</label>
+                <button type="button" @click="abierto = !abierto" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-left flex items-center justify-between bg-white hover:border-gray-400 focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition">
+                    <span x-text="seleccionado ? 'Diente ' + seleccionado : 'Nro diente'" class="text-gray-700"></span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                
+                <div x-show="abierto" x-cloak x-transition class="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-hidden">
+                    <div class="p-2 border-b border-gray-100">
+                        <input type="text" x-model="busqueda" placeholder="Buscar diente..." class="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-teal-500">
+                    </div>
+                    <div class="max-h-44 overflow-y-auto">
+                        <template x-for="d in filtrados" :key="d">
+                            <button type="button" @click="seleccionar(d)" class="w-full px-3 py-2 text-left text-sm hover:bg-teal-50 transition" :class="seleccionado == d ? 'bg-teal-50 text-teal-700 font-semibold' : 'text-gray-700'" x-text="'Diente ' + d"></button>
+                        </template>
+                        <template x-if="filtrados.length === 0">
+                            <p class="px-3 py-2 text-xs text-gray-500 text-center">Sin resultados</p>
+                        </template>
+                    </div>
                 </div>
             </div>
 
-            <p class="text-[10px] text-gray-500 mt-3 italic">
-                @if ($soloLectura)
-                    Esta consulta ya no puede editarse.
-                @elseif ($consultaId)
-                    Al guardar, se actualizará el odontograma de esta consulta.
-                @else
-                    Al guardar la consulta, se creará el odontograma histórico. Se parte del último registro del paciente.
-                @endif
-            </p>
+            <!-- Aplicar a -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Aplicar a</label>
+                <select wire:model.live="modoDienteCompleto" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 transition">
+                    <option value="0">Superficie</option>
+                    <option value="1">Diente completo</option>
+                </select>
+            </div>
+
+            <!-- Superficie -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Superficie</label>
+                <select wire:model="superficieSeleccionada" @if($modoDienteCompleto) disabled @endif class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100 focus:ring-2 focus:ring-teal-500 transition">
+                    @foreach ($superficies as $sup)
+                        <option value="{{ $sup }}">{{ ucfirst($sup) }}</option>
+                    @endforeach
+                </select>
+            </div>
+
+            <!-- Estado -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Estado</label>
+                <select wire:model.live="estadoSeleccionado" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 transition">
+                    @if ($modoDienteCompleto)
+                        @foreach ($estadosGenerales as $key => $label)
+                            <option value="{{ $key }}">{{ $label }}</option>
+                        @endforeach
+                    @else
+                        @foreach ($estadosSuperficie as $key => $label)
+                            <option value="{{ $key }}">{{ $label }}</option>
+                        @endforeach
+                    @endif
+                </select>
+            </div>
+
+            <!-- Nota (Nuevo campo) -->
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 mb-1">Nota (Opcional)</label>
+                <input type="text" 
+                    wire:model="{{ $modoDienteCompleto ? 'notaGeneral' : 'notaSeleccionada' }}" 
+                    placeholder="Ej: Revisar en 6 meses..." 
+                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 transition">
+            </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-3 mt-5 pt-4 border-t border-gray-100">
+            <button wire:click="aplicar" type="button" class="px-5 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-semibold hover:bg-teal-700 shadow-sm transition flex items-center justify-center sm:w-auto w-full">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                Aplicar a {{ $modoDienteCompleto ? 'Diente Completo' : 'Superficie' }}
+            </button>
+            
+            @if (!$modoDienteCompleto)
+                <button wire:click="aplicarATodasLasSuperficies" type="button" class="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-lg text-sm font-semibold hover:bg-slate-200 transition flex items-center justify-center sm:w-auto w-full border border-slate-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                    Aplicar a todas las superficies
+                </button>
+            @endif
         </div>
     </div>
 </div>
