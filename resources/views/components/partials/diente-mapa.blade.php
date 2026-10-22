@@ -12,7 +12,10 @@
     $imgVestibular = asset($this->getRutaImagen($diente, 'vestibular'));
     $imgLingual = asset($this->getRutaImagen($diente, 'lingual'));
     
-    $esFrontal = in_array($diente, [13, 12, 11, 21, 22, 23, 33, 32, 31, 41, 42, 43]);
+    $esFrontal = in_array($diente, [
+        13, 12, 11, 21, 22, 23, 33, 32, 31, 41, 42, 43, // Adultos
+        53, 52, 51, 61, 62, 63, 83, 82, 81, 73, 72, 71  // Infantiles
+    ]);
     $mostrarOclusal = !$esFrontal;
 
     // Variables de control clínico
@@ -24,28 +27,7 @@
 <div class="flex flex-col items-center" wire:key="diente-{{ $diente }}">
     <span class="text-[10px] font-bold text-gray-500 mb-0.5">{{ $diente }}</span>
 
-    {{-- VISTA 1: OCLUSAL --}}
-    @if($mostrarOclusal)
-        <div class="relative bg-slate-50 rounded border border-slate-200 overflow-hidden" style="width: 45px; height: 45px;">
-            <img src="{{ $imgOclusal }}" 
-                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-                 class="absolute inset-0 w-full h-full object-contain pointer-events-none {{ $espejo ? 'scale-x-[-1]' : '' }}" 
-                 alt="Oclusal {{ $diente }}">
-            <div class="absolute inset-0 hidden items-center justify-center text-[8px] text-slate-400 pointer-events-none">Ocl.</div>
-
-            @if($esExtraido || $tieneCorona)
-                {{-- Pintar todo de gris (Extraído) o morado (Corona) y bloquear --}}
-                <div class="absolute inset-0 cursor-not-allowed mix-blend-multiply" style="background: {{ $this->colorEstado($general) }};"></div>
-            @else
-                {{-- Superficies clickeables normales --}}
-                <button type="button" wire:click="aplicarSuperficie({{ $diente }}, 'vestibular')" class="absolute top-0 left-1/4 w-1/2 h-1/4 hover:opacity-70 transition mix-blend-multiply" style="background: {{ $this->colorEstado($superficies['vestibular'] ?? 'SANO') }};"></button>
-                <button type="button" wire:click="aplicarSuperficie({{ $diente }}, 'mesial')" class="absolute top-1/4 left-0 w-1/4 h-1/2 hover:opacity-70 transition mix-blend-multiply" style="background: {{ $this->colorEstado($superficies['mesial'] ?? 'SANO') }};"></button>
-                <button type="button" wire:click="aplicarSuperficie({{ $diente }}, 'distal')" class="absolute top-1/4 right-0 w-1/4 h-1/2 hover:opacity-70 transition mix-blend-multiply" style="background: {{ $this->colorEstado($superficies['distal'] ?? 'SANO') }};"></button>
-                <button type="button" wire:click="aplicarSuperficie({{ $diente }}, 'lingual')" class="absolute bottom-0 left-1/4 w-1/2 h-1/4 hover:opacity-70 transition mix-blend-multiply" style="background: {{ $this->colorEstado($superficies['lingual'] ?? 'SANO') }};"></button>
-                <button type="button" wire:click="aplicarSuperficie({{ $diente }}, 'oclusal')" class="absolute top-1/4 left-1/4 w-1/2 h-1/2 hover:opacity-70 transition mix-blend-multiply" style="background: {{ $this->colorEstado($superficies['oclusal'] ?? 'SANO') }};"></button>
-            @endif
-        </div>
-    @endif
+    
 
     {{-- VISTAS LATERALES --}}
     <div class="flex flex-col gap-1 w-full {{ $mostrarOclusal ? 'mt-1' : '' }}">
@@ -71,6 +53,29 @@
                 <div class="absolute bottom-0 w-full h-1/2 hover:opacity-70 transition cursor-pointer mix-blend-multiply" wire:click="aplicarDienteCompleto({{ $diente }})" style="background: {{ $this->colorEstado($general) }};"></div>
             @endif
         </div>
+        
+        {{-- VISTA 1: OCLUSAL --}}
+        @if($mostrarOclusal)
+            <div class="relative bg-slate-50 rounded border border-slate-200 overflow-hidden" style="width: 45px; height: 45px;">
+                <img src="{{ $imgOclusal }}" 
+                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
+                    class="absolute inset-0 w-full h-full object-contain pointer-events-none {{ $espejo ? 'scale-x-[-1]' : '' }}" 
+                    alt="Oclusal {{ $diente }}">
+                <div class="absolute inset-0 hidden items-center justify-center text-[8px] text-slate-400 pointer-events-none">Ocl.</div>
+
+                @if($esExtraido || $tieneCorona)
+                    {{-- Pintar todo de gris (Extraído) o morado (Corona) y bloquear --}}
+                    <div class="absolute inset-0 cursor-not-allowed mix-blend-multiply" style="background: {{ $this->colorEstado($general) }};"></div>
+                @else
+                    {{-- Superficies clickeables normales --}}
+                    <button type="button" wire:click="aplicarSuperficie({{ $diente }}, 'vestibular')" class="absolute top-0 left-1/4 w-1/2 h-1/4 hover:opacity-70 transition mix-blend-multiply" style="background: {{ $this->colorEstado($superficies['vestibular'] ?? 'SANO') }};"></button>
+                    <button type="button" wire:click="aplicarSuperficie({{ $diente }}, 'mesial')" class="absolute top-1/4 left-0 w-1/4 h-1/2 hover:opacity-70 transition mix-blend-multiply" style="background: {{ $this->colorEstado($superficies['mesial'] ?? 'SANO') }};"></button>
+                    <button type="button" wire:click="aplicarSuperficie({{ $diente }}, 'distal')" class="absolute top-1/4 right-0 w-1/4 h-1/2 hover:opacity-70 transition mix-blend-multiply" style="background: {{ $this->colorEstado($superficies['distal'] ?? 'SANO') }};"></button>
+                    <button type="button" wire:click="aplicarSuperficie({{ $diente }}, 'lingual')" class="absolute bottom-0 left-1/4 w-1/2 h-1/4 hover:opacity-70 transition mix-blend-multiply" style="background: {{ $this->colorEstado($superficies['lingual'] ?? 'SANO') }};"></button>
+                    <button type="button" wire:click="aplicarSuperficie({{ $diente }}, 'oclusal')" class="absolute top-1/4 left-1/4 w-1/2 h-1/2 hover:opacity-70 transition mix-blend-multiply" style="background: {{ $this->colorEstado($superficies['oclusal'] ?? 'SANO') }};"></button>
+                @endif
+            </div>
+        @endif
 
         {{-- LINGUAL --}}
         <div class="relative bg-slate-50 rounded border border-slate-200 overflow-hidden" style="width: 45px; height: {{ $esFrontal ? '55px' : '35px' }};">

@@ -14,6 +14,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\FacturacionController;
 use App\Http\Controllers\CuentaController;
 use App\Http\Controllers\MovimientoEntreCuentaController;
+use App\Http\Controllers\EmpresaController;
+
 /*
 |--------------------------------------------------------------------------
 | Rutas autenticadas (cualquier rol)
@@ -34,6 +36,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Consultas
     Route::get('consultas', [ConsultaController::class, 'index'])->name('consultas.index');
+    Route::get('/consultas/{consulta}/pdf', [ConsultaController::class, 'pdf'])->name('consultas.pdf');
 
     //Facturación
     Route::get('facturacion', [FacturacionController::class, 'index'])->name('facturacion.index');
@@ -43,7 +46,13 @@ Route::middleware(['auth'])->group(function () {
     Route::get('facturacion/cajas/{caja}', [FacturacionController::class, 'cajaDetalle'])->name('facturacion.cajas.detalle');
 
 });
-
+Route::get('/debug-mail', function () {
+    return [
+        'default_mailer' => config('mail.default'),
+        'mailers_smtp' => config('mail.mailers.smtp'),
+        'from_address' => config('mail.from.address'),
+    ];
+});
 /*
 |--------------------------------------------------------------------------
 | Rutas de Parámetros (solo admin)
@@ -58,17 +67,15 @@ Route::middleware(['auth', 'role:admin'])->prefix('parametros')->group(function 
     Route::get('medicos', [MedicoController::class, 'index'])->name('medicos.index');
     Route::get('tarifas', [TarifaController::class, 'index'])->name('tarifas.index');
     Route::get('tasas', [TasaController::class, 'index'])->name('tasas.index');
+    Route::get('empresa', [EmpresaController::class, 'index'])->name('empresa.index');
 
     Route::prefix('tesoreria')->group(function () {
         Route::get('cuentas', [CuentaController::class, 'index'])->name('tesoreria.cuentas.index');
         Route::get('movimientos', [MovimientoEntreCuentaController::class, 'index'])->name('tesoreria.movimientos.index');
 
     });
-});
-Route::get('odontograma', function(){
-    return view('odontograma');
-});
 
+});
 
 
 /*

@@ -52,8 +52,8 @@ new class extends Component
         // Temporales (Niños)
         'sup_der_inf' => [55, 54, 53, 52, 51],
         'sup_izq_inf' => [61, 62, 63, 64, 65],
-        'inf_izq_inf' => [85, 84, 83, 82, 81],
-        'inf_der_inf' => [71, 72, 73, 74, 75],
+        'inf_izq_inf' => [81, 82, 83, 84, 85], 
+        'inf_der_inf' => [75, 74, 73, 72, 71],
     ];
 
   

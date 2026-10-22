@@ -156,7 +156,7 @@
 
                 {{-- TESORERÍA --}}
                 @if (auth()->user()?->esAdmin())
-                    <div x-data="{ open: false }" class="space-y-1 pt-2">
+                    <div x-data="{ open: {{ request()->routeIs('tesoreria.*') ? 'true' : 'false' }} }" class="space-y-1 pt-2">
                         <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Configuración Financiera</p>
 
                         <button @click="open = !open"
@@ -192,7 +192,7 @@
                 {{-- MÓDULO: PARÁMETROS (solo admin) --}}
                 {{-- ============================================================ --}}
                 @if (auth()->user()?->esAdmin())
-                    <div x-data="{ open: false }" class="space-y-1 pt-2">
+                    <div x-data="{ open: {{ request()->routeIs('especialidades.*', 'condiciones.*', 'alergenos.*', 'medicos.*', 'tarifas.*', 'tasas.*', 'empresa.*') ? 'true' : 'false' }} }" class="space-y-1 pt-2">
                         <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Parámetros</p>
 
                         <button @click="open = !open"
@@ -233,6 +233,10 @@
                             <a href="{{ route('tasas.index') }}"
                             class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('tasas.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
                                 Tasas de Cambio
+                            </a>
+                            <a href="{{ route('empresa.index') }}"
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('empresa.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Datos de Empresa
                             </a>
                         </div>
                     </div>
