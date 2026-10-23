@@ -25,6 +25,7 @@ new class extends Component
     public $moneda = 'dolar';
     public $cambio_id = null;
     public $monto_tasa_cambio = null;
+    public $especialidad_id = null;
     
 
     #[On('nueva-cita')]
@@ -105,6 +106,26 @@ new class extends Component
         $this->paciente_id = $id ?? '';
     }
 
+    #[On('medico-seleccionado')]
+    public function setMedico(?int $id): void
+    {
+        $this->medico_id = $id ?? '';
+        
+        // Disparar la lógica de autoselección de tarifa y tasa
+        if ($id) {
+            $this->updatedMedicoId();
+        }
+    }
+
+    #[On('tarifa-seleccionada')]
+    public function setTarifa(?int $id): void
+    {
+        $this->tarifa_id = $id ?? '';
+        if ($id) {
+            $this->updatedTarifaId();
+        }
+    }
+
     public function cerrar(): void
     {
         $this->abierto = false;
@@ -178,22 +199,20 @@ new class extends Component
 
     public function updatedMedicoId(): void
     {
-        if (!$this->medico_id) return;
+        if (!$this->medico_id) {
+            $this->especialidad_id = null;
+            return;
+        }
 
         // ============================
-        // Autoseleccionar tarifa
+        // Obtener la especialidad del médico
         // ============================
         $medico = \App\Models\Medico::with('especialidades')->find($this->medico_id);
-        if (!$medico) return;
-
-        $especialidadId = $medico->especialidades->first()?->id;
-        $tarifa = \App\Models\Tarifa::paraEspecialidad($especialidadId, 'CONSULTA');
-
-        if ($tarifa) {
-            $this->tarifa_id = $tarifa->id;
-            $this->precio = $tarifa->precio_usd;
-            $this->recalcularTotal();
+        if ($medico) {
+            // Tomamos la primera especialidad del médico (o null si no tiene)
+            $this->especialidad_id = $medico->especialidades->first()?->id;
         }
+       
 
         // ============================
         // Autoseleccionar tasa predeterminada
@@ -307,18 +326,9 @@ new class extends Component
                         {{-- Médico --}}
                         <div class="sm:col-span-2">
                             <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Médico *</label>
-                            <select wire:model="medico_id"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                                <option value="">Seleccione un médico...</option>
-                                @foreach (Medico::with('especialidades')->where('estado', 'ACTIVO')->orderBy('apellido')->get() as $m)
-                                    <option value="{{ $m->id }}">
-                                        {{ $m->apellido }}, {{ $m->nombre }}
-                                        @if ($m->especialidades->count())
-                                            — {{ $m->especialidades->pluck('nombre')->join(', ') }}
-                                        @endif
-                                    </option>
-                                @endforeach
-                            </select>
+                            
+                            <livewire:medico-select :value="$medico_id ?: null" :key="'medico-select-' . ($citaId ?? 'nuevo') . '-' . $medico_id"/>
+                            
                             @error('medico_id') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
 
@@ -376,15 +386,13 @@ new class extends Component
                             {{-- Tarifa --}}
                             <div class="sm:col-span-3">
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Tarifa</label>
-                                <select wire:model.live="tarifa_id"
-                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                                    <option value="">Sin tarifa asignada</option>
-                                    @foreach (\App\Models\Tarifa::where('activo', true)->with('especialidad')->orderBy('nombre')->get() as $t)
-                                        <option value="{{ $t->id }}">
-                                            {{ $t->nombre }} — ${{ number_format($t->precio_usd, 2) }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                
+                                <livewire:tarifa-select 
+                                    :value="$tarifa_id ?: null" 
+                                    :especialidadId="$especialidad_id" 
+                                    :key="'tarifa-select-' . ($citaId ?? 'nuevo') . '-' . $especialidad_id . '-' . $tarifa_id" 
+                                />
+                                
                                 @error('tarifa_id') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
 

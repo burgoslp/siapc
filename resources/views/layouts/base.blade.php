@@ -147,12 +147,17 @@
                                 </span>
                             @endif
                         </a>
+                        <a href="{{ route('gastos.index') }}"
+                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('gastos.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                            Gastos
+                        </a>
                         <a href="{{ route('facturacion.cajas') }}"
                         class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('facturacion.cajas*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
                             Portadas
                         </a>
                     </div>
                 </div>
+                
 
                 {{-- TESORERÍA --}}
                 @if (auth()->user()?->esAdmin())

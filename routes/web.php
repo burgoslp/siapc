@@ -15,7 +15,7 @@ use App\Http\Controllers\FacturacionController;
 use App\Http\Controllers\CuentaController;
 use App\Http\Controllers\MovimientoEntreCuentaController;
 use App\Http\Controllers\EmpresaController;
-
+use App\Http\Controllers\GastoController;
 /*
 |--------------------------------------------------------------------------
 | Rutas autenticadas (cualquier rol)
@@ -44,6 +44,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('facturacion/pagos', [FacturacionController::class, 'pagos'])->name('facturacion.pagos');
     Route::get('facturacion/cajas', [FacturacionController::class, 'cajas'])->name('facturacion.cajas');
     Route::get('facturacion/cajas/{caja}', [FacturacionController::class, 'cajaDetalle'])->name('facturacion.cajas.detalle');
+
+    //gastos
+    Route::get('/gastos', [GastoController::class, 'index'])->name('gastos.index');
+
 
 });
 Route::get('/debug-mail', function () {

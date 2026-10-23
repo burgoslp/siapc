@@ -576,9 +576,19 @@ new class extends Component
 
                     <div class="flex justify-end gap-2 mt-4">
                         <button wire:click="$set('modalEmailAbierto', false)" class="px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded transition">Cerrar</button>
-                        <button wire:click="enviarReceta" wire:loading.attr="disabled" class="px-4 py-1.5 bg-teal-600 text-white rounded text-xs font-medium hover:bg-teal-700 transition flex items-center">
-                            <svg wire:loading wire:target="enviarReceta" class="animate-spin -ml-1 mr-1.5 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                            Enviar
+                        <button wire:click="enviarReceta" 
+                                wire:loading.attr="disabled" 
+                                wire:target="enviarReceta"
+                                class="px-4 py-1.5 bg-teal-600 text-white rounded text-xs font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center">
+                            
+                            {{-- Spinner animado que solo se ve cuando está cargando --}}
+                            <svg wire:loading wire:target="enviarReceta" class="animate-spin -ml-1 mr-1.5 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                            </svg>
+                            
+                            <span wire:loading.remove wire:target="enviarReceta">Enviar</span>
+                            <span wire:loading wire:target="enviarReceta">Enviando...</span>
                         </button>
                     </div>
                 </div>
