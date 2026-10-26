@@ -12,6 +12,20 @@
         'BINANCE'         => ['label' => 'Binance',        'color' => 'amber'],
         'OTRO'            => ['label' => 'Otro',           'color' => 'gray'],
     ];
+
+    $totales = $cajaDisponible->totalesPorFormaPago();
+    
+    $efectivoUsd = $cajaDisponible->pagos()
+    ->where('estado', 'ACTIVO')
+    ->where('forma_pago', 'EFECTIVO')
+    ->where('moneda', 'dolar')
+    ->sum('monto');
+    
+    $efectivoBs = $cajaDisponible->pagos()
+    ->where('estado', 'ACTIVO')
+    ->where('forma_pago', 'EFECTIVO')
+    ->where('moneda', 'bs')
+    ->sum('monto');
 @endphp
 <div class="container mx-auto px-4 py-6 space-y-6">
 
@@ -95,11 +109,36 @@
 
                     @php
                         $totalesVencida = $cajaVencida->totalesPorFormaPago();
+
+                        $efectivoUsdVencida = $cajaVencida->pagos()
+                            ->where('estado', 'ACTIVO')
+                            ->where('forma_pago', 'EFECTIVO')
+                            ->where('moneda', 'dolar')
+                            ->sum('monto');
+                            
+                        $efectivoBsVencida = $cajaVencida->pagos()
+                            ->where('estado', 'ACTIVO')
+                            ->where('forma_pago', 'EFECTIVO')
+                            ->where('moneda', 'bs')
+                            ->sum('monto');
                     @endphp
 
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {{-- Efectivo USD --}}
+                        <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                            <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Efectivo USD</p>
+                            <p class="text-sm font-bold text-gray-800 mt-1">$ {{ number_format($efectivoUsdVencida, 2) }}</p>
+                        </div>
+
+                        {{-- Efectivo Bs --}}
+                        <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                            <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Efectivo Bs</p>
+                            <p class="text-sm font-bold text-gray-800 mt-1">Bs {{ number_format($efectivoBsVencida, 2) }}</p>
+                        </div>
+
+                        {{-- Otros métodos --}}
                         @foreach ($formas as $key => $info)
-                            @if (($totalesVencida[$key] ?? 0) > 0)
+                            @if ($key !== 'EFECTIVO' && ($totalesVencida[$key] ?? 0) > 0)
                                 <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
                                     <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
                                         {{ $info['label'] }}
@@ -122,6 +161,7 @@
                             </span>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
         </div>
@@ -185,18 +225,42 @@
                     $totales = $cajaDisponible->totalesPorFormaPago();
                 @endphp
 
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {{-- 👇 EFECTIVO USD --}}
+                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                        <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                            Efectivo USD
+                        </p>
+                        <p class="text-sm font-bold text-gray-800 mt-1">
+                            $ {{ number_format($efectivoUsd, 2) }}
+                        </p>
+                    </div>
+
+                    {{-- 👇 EFECTIVO BS --}}
+                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                        <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                            Efectivo Bs
+                        </p>
+                        <p class="text-sm font-bold text-gray-800 mt-1">
+                            Bs {{ number_format($efectivoBs, 2) }}
+                        </p>
+                    </div>
+
+                    {{-- OTROS MÉTODOS DE PAGO --}}
                     @foreach ($formas as $key => $info)
-                        <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                            <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
-                                {{ $info['label'] }}
-                            </p>
-                            <p class="text-sm font-bold text-gray-800 mt-1">
-                                Bs {{ number_format($totales[$key] ?? 0, 2) }}
-                            </p>
-                        </div>
+                        {{-- Saltamos EFECTIVO porque ya lo mostramos desglosado --}}
+                        @if ($key !== 'EFECTIVO')
+                            <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                                    {{ $info['label'] }}
+                                </p>
+                                <p class="text-sm font-bold text-gray-800 mt-1">
+                                    Bs {{ number_format($totales[$key] ?? 0, 2) }}
+                                </p>
+                            </div>
+                        @endif
                     @endforeach
-                </div>
+            </div>
 
                 <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
                     <div>
@@ -275,29 +339,56 @@
             </div>
 
             <div class="p-6">
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    @php
-                        $totalesCerrada = [
-                            'EFECTIVO'        => $ultimaCajaCerrada->total_efectivo,
-                            'TRANSFERENCIA'   => $ultimaCajaCerrada->total_transferencia,
-                            'PAGO_MOVIL'      => $ultimaCajaCerrada->total_pago_movil,
-                            'TARJETA_DEBITO'  => $ultimaCajaCerrada->total_tarjeta_debito,
-                            'TARJETA_CREDITO' => $ultimaCajaCerrada->total_tarjeta_credito,
-                            'ZELLE'           => $ultimaCajaCerrada->total_zelle,
-                            'BINANCE'         => $ultimaCajaCerrada->total_binance,
-                            'OTRO'            => $ultimaCajaCerrada->total_otros,
-                        ];
-                    @endphp
+                @php
+                    $totalesCerrada = [
+                        'EFECTIVO'        => $ultimaCajaCerrada->total_efectivo,
+                        'TRANSFERENCIA'   => $ultimaCajaCerrada->total_transferencia,
+                        'PAGO_MOVIL'      => $ultimaCajaCerrada->total_pago_movil,
+                        'TARJETA_DEBITO'  => $ultimaCajaCerrada->total_tarjeta_debito,
+                        'TARJETA_CREDITO' => $ultimaCajaCerrada->total_tarjeta_credito,
+                        'ZELLE'           => $ultimaCajaCerrada->total_zelle,
+                        'BINANCE'         => $ultimaCajaCerrada->total_binance,
+                        'OTRO'            => $ultimaCajaCerrada->total_otros,
+                    ];
 
+                    $efectivoUsdCerrada = $ultimaCajaCerrada->pagos()
+                        ->where('estado', 'ACTIVO')
+                        ->where('forma_pago', 'EFECTIVO')
+                        ->where('moneda', 'dolar')
+                        ->sum('monto');
+                        
+                    $efectivoBsCerrada = $ultimaCajaCerrada->pagos()
+                        ->where('estado', 'ACTIVO')
+                        ->where('forma_pago', 'EFECTIVO')
+                        ->where('moneda', 'bs')
+                        ->sum('monto');
+                @endphp
+
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {{-- Efectivo USD --}}
+                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                        <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Efectivo USD</p>
+                        <p class="text-sm font-bold text-gray-800 mt-1">$ {{ number_format($efectivoUsdCerrada, 2) }}</p>
+                    </div>
+
+                    {{-- Efectivo Bs --}}
+                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                        <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Efectivo Bs</p>
+                        <p class="text-sm font-bold text-gray-800 mt-1">Bs {{ number_format($efectivoBsCerrada, 2) }}</p>
+                    </div>
+
+                    {{-- Otros métodos --}}
                     @foreach ($formas as $key => $info)
-                        <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                            <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
-                                {{ $info['label'] }}
-                            </p>
-                            <p class="text-sm font-bold text-gray-800 mt-1">
-                                Bs {{ number_format($totalesCerrada[$key] ?? 0, 2) }}
-                            </p>
-                        </div>
+                        @if ($key !== 'EFECTIVO')
+                            <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                                <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                                    {{ $info['label'] }}
+                                </p>
+                                <p class="text-sm font-bold text-gray-800 mt-1">
+                                    Bs {{ number_format($totalesCerrada[$key] ?? 0, 2) }}
+                                </p>
+                            </div>
+                        @endif
                     @endforeach
                 </div>
 

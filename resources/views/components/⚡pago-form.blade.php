@@ -16,6 +16,8 @@ new class extends Component
     // Array de líneas de pago
     public array $lineas = [];
 
+    public $cuentasDisponibles = [];
+
     #[On('cobrar-cita')]
     public function abrir(int $citaId): void
     {
@@ -43,7 +45,9 @@ new class extends Component
                 'tasa_momento' => $cambioActual?->monto,
                 'monto' => $this->cita->saldo_pendiente_usd,
                 'forma_pago' => 'EFECTIVO',
-                'banco' => '',
+                'banco_id' => '',     
+                'cuenta_id' => '',    
+                'banco_cliente' => '', 
                 'referencia' => '',
                 'notas' => '',
             ],
@@ -88,16 +92,19 @@ new class extends Component
 
     public function updatedLineas($value, $key): void
     {
-        // $key llega como "0.moneda", "0.tasa_id", etc. (sin el prefijo "lineas.")
         $parts = explode('.', $key);
         if (count($parts) !== 2) return;
 
         $index = (int) $parts[0];
         $campo = $parts[1];
 
-        // Si cambia la moneda o la tasa, recargar el cambio
         if (in_array($campo, ['moneda', 'tasa_id'])) {
             $this->cargarCambioLinea($index);
+        }
+
+        // Si cambia la moneda o el banco, limpiamos la cuenta
+        if (in_array($campo, ['moneda', 'banco'])) {
+            $this->lineas[$index]['cuenta_id'] = '';
         }
     }
 
@@ -132,7 +139,6 @@ new class extends Component
         foreach ($this->lineas as $linea) {
             $totalPagadoUsd += $this->calcularLineaUsd($linea);
         }
-
         return max(0, round($this->cita->saldo_pendiente_usd - $totalPagadoUsd, 2));
     }
 
@@ -206,18 +212,38 @@ new class extends Component
     public function guardar(): void
     {
         if (!$this->cita || !$this->caja) return;
-
         // Validar
-        $this->validate([
+        $rules = [
             'lineas' => 'required|array|min:1',
             'lineas.*.moneda' => 'required|in:dolar,euro,bs',
             'lineas.*.tasa_id' => 'required|exists:tasas,id',
             'lineas.*.monto' => 'required|numeric|min:0.01',
             'lineas.*.forma_pago' => 'required|in:EFECTIVO,TRANSFERENCIA,PAGO_MOVIL,TARJETA_DEBITO,TARJETA_CREDITO,ZELLE,BINANCE,OTRO',
-        ]);
+            'lineas.*.banco_cliente' => 'nullable|string',
+        ];
+
+        // Validación condicional por cada línea
+        foreach ($this->lineas as $i => $linea) {
+            if ($linea['forma_pago'] !== 'EFECTIVO') {
+                $rules["lineas.{$i}.cuenta_id"] = 'required|exists:cuentas,id';
+            }
+
+            // Si es transferencia o pago móvil, exigimos banco
+            if (in_array($linea['forma_pago'], ['TRANSFERENCIA', 'PAGO_MOVIL'])) {
+                $rules["lineas.{$i}.banco"] = 'required|string';
+            }
+
+            // Si es transferencia, pago móvil, zelle o binance, exigimos referencia
+            if (in_array($linea['forma_pago'], ['TRANSFERENCIA', 'PAGO_MOVIL', 'ZELLE', 'BINANCE'])) {
+                $rules["lineas.{$i}.referencia"] = 'required|string';
+            }
+        }
+
+        $this->validate($rules);
 
         // Validar monto total no exceda saldo
         $saldoRestante = $this->calcularSaldoRestante();
+
         if ($saldoRestante < -0.01) {
             $this->addError('lineas', 'El total de los pagos excede el saldo pendiente de la cita.');
             return;
@@ -239,12 +265,25 @@ new class extends Component
             }
         }
 
+
         \DB::transaction(function () {
             $totalBs = 0;
 
             foreach ($this->lineas as $linea) {
+                
+                $cuentaIdFinal = $linea['cuenta_id'] ?? null;
+
+                if ($linea['forma_pago'] === 'EFECTIVO') {
+                    $cuentaCajaChica = \App\Models\Cuenta::where('tipo', 'EFECTIVO')
+                        ->where('moneda', $linea['moneda'])
+                        ->where('activa', true)
+                        ->first();
+                    $cuentaIdFinal = $cuentaCajaChica ? $cuentaCajaChica->id : null;
+                }
+
                 $pago = Pago::create([
                     'caja_id' => $this->caja->id,
+                    'cuenta_id' => $cuentaIdFinal,
                     'cita_id' => $this->cita->id,
                     'paciente_id' => $this->cita->paciente_id,
                     'monto' => $linea['monto'],
@@ -253,15 +292,20 @@ new class extends Component
                     'tasa_momento' => $linea['tasa_momento'],
                     'moneda' => $linea['moneda'],
                     'forma_pago' => $linea['forma_pago'],
-                    'banco' => $linea['banco'] ?: null,
+                    'banco' => $linea['banco'] ?? null,
+                    'banco_cliente' => $linea['banco_cliente'] ?? null,
                     'referencia' => $linea['referencia'] ?: null,
                     'notas' => $linea['notas'] ?: null,
                     'registrado_por' => auth()->id(),
                     'estado' => 'ACTIVO',
                 ]);
 
+                
+
                 $totalBs += (float) $pago->monto_bs;
             }
+
+            
 
             // Actualizar cita
             $this->cita->total_pagado = round((float) $this->cita->total_pagado + $totalBs, 2);
@@ -284,6 +328,23 @@ new class extends Component
     private function tasaDolarActual(): float
     {
         return (float) (\App\Models\Tasa::montoPredeterminada('dolar') ?? 0);
+    }
+
+    public function getCuentasDeMoneda($moneda)
+    {
+        // Traemos las cuentas activas filtradas por la moneda de la línea
+        return \App\Models\Cuenta::with('banco')
+            ->where('activa', true)
+            ->where('moneda', $moneda)
+            ->get();
+    }
+
+    public function getBancosConCuentas($moneda)
+    {
+        // Retorna solo los bancos que tienen al menos una cuenta activa en esa moneda
+        return \App\Models\Banco::whereHas('cuentas', function($q) use ($moneda) {
+            $q->where('moneda', $moneda)->where('activa', true);
+        })->orderBy('nombre')->get();
     }
 
     public function with(): array
@@ -347,25 +408,23 @@ new class extends Component
                     {{-- Líneas de pago --}}
                     <div class="space-y-3">
                         @foreach ($lineas as $i => $linea)
-                            <div wire:key="linea-{{ $i }}" class="border border-gray-200 rounded-lg p-4 bg-gray-50/50">
+                            <div class="border border-gray-200 rounded-lg p-4 bg-gray-50/50" wire:key="linea-{{ $i }}">
                                 <div class="flex items-center justify-between mb-3">
                                     <span class="text-xs font-semibold text-gray-500 uppercase">
                                         Pago {{ $i + 1 }}
                                     </span>
                                     @if (count($lineas) > 1)
-                                        <button type="button" wire:click="quitarLinea({{ $i }})"
-                                                class="text-red-500 hover:text-red-700 text-xs font-medium">
+                                        <button type="button" wire:click="quitarLinea({{ $i }})" class="text-red-500 hover:text-red-700 text-xs font-medium">
                                             Quitar
                                         </button>
                                     @endif
                                 </div>
 
-                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
                                     {{-- Moneda --}}
                                     <div>
                                         <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Moneda</label>
-                                        <select wire:model.live="lineas.{{ $i }}.moneda"
-                                                class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
+                                        <select wire:model.live="lineas.{{ $i }}.moneda" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
                                             <option value="dolar">USD</option>
                                             <option value="euro">EUR</option>
                                             <option value="bs">Bs</option>
@@ -373,75 +432,118 @@ new class extends Component
                                     </div>
 
                                     {{-- Tasa --}}
-                                   <div>
+                                    <div>
                                         <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Tasa</label>
-                                        <select wire:model.live="lineas.{{ $i }}.tasa_id"
-                                                class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
+                                        <select wire:model.live="lineas.{{ $i }}.tasa_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
                                             @foreach ($tasas as $t)
                                                 <option value="{{ $t->id }}">{{ $t->etiqueta }}</option>
                                             @endforeach
                                         </select>
                                         @if (!empty($linea['tasa_momento']))
-                                            <p class="text-[10px] text-teal-700 font-semibold mt-0.5">
-                                                Bs {{ number_format($linea['tasa_momento'], 2) }}
-                                            </p>
+                                            <p class="text-[10px] text-teal-700 font-semibold mt-0.5">Bs {{ number_format($linea['tasa_momento'], 2) }}</p>
                                         @endif
                                     </div>
 
                                     {{-- Monto --}}
                                     <div>
-                                        <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">
-                                            Monto ({{ strtoupper($linea['moneda']) }})
-                                        </label>
-                                        <input type="number" step="0.01" min="0.01"
-                                               wire:model.live="lineas.{{ $i }}.monto"
-                                               class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs font-semibold">
+                                        <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Monto ({{ strtoupper($linea['moneda']) }})</label>
+                                        <input type="number" step="0.01" min="0.01" wire:model.live="lineas.{{ $i }}.monto" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs font-semibold">
                                     </div>
 
                                     {{-- Forma de pago --}}
-                                    <div>
-                                        <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Forma</label>
-                                        <select wire:model.live="lineas.{{ $i }}.forma_pago"
-                                                class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
+                                    <div class="col-span-2 sm:col-span-3">
+                                        <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Forma de Pago</label>
+                                        <select wire:model.live="lineas.{{ $i }}.forma_pago" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
                                             <option value="EFECTIVO">Efectivo</option>
                                             <option value="TRANSFERENCIA">Transferencia</option>
                                             <option value="PAGO_MOVIL">Pago Móvil</option>
-                                            <option value="TARJETA_DEBITO">T. Débito</option>
-                                            <option value="TARJETA_CREDITO">T. Crédito</option>
+                                            <option value="TARJETA_DEBITO">Tarjeta de Débito</option>
+                                            <option value="TARJETA_CREDITO">Tarjeta de Crédito</option>
                                             <option value="ZELLE">Zelle</option>
                                             <option value="BINANCE">Binance</option>
                                             <option value="OTRO">Otro</option>
                                         </select>
                                     </div>
+                                </div>
 
-                                    {{-- Banco --}}
-                                    @if ($this->requiereBanco($i))
-                                        <div class="sm:col-span-2">
-                                            <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Banco *</label>
-                                            <input type="text" wire:model="lineas.{{ $i }}.banco"
-                                                   placeholder="Banesco, BDV..."
-                                                   class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
-                                            @error("lineas.{$i}.banco") <span class="text-[10px] text-red-500">{{ $message }}</span> @enderror
-                                        </div>
-                                    @endif
+                                    @if ($linea['forma_pago'] === 'EFECTIVO')
+                                            {{-- Si es efectivo, no mostramos nada de banco. El sistema asigna la caja chica automáticamente. --}}
+                                            <p class="text-[10px] text-teal-600 italic mt-2">
+                                                * El dinero ingresará automáticamente a la Caja Chica ({{ strtoupper($linea['moneda']) }}).
+                                            </p>
+                                        @elseif (in_array($linea['forma_pago'], ['ZELLE', 'BINANCE']))
+                                            {{-- Formas de pago digitales --}}
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-gray-200">
+                                                {{-- Cuenta Plataforma --}}
+                                                <div>
+                                                    <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Plataforma Digital</label>
+                                                    <select wire:model.live="lineas.{{ $i }}.cuenta_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
+                                                        <option value="">Seleccione plataforma...</option>
+                                                        @foreach (\App\Models\Cuenta::where('tipo', 'PLATAFORMA DIGITAL')->where('moneda', $linea['moneda'])->where('activa', true)->get() as $c)
+                                                            <option value="{{ $c->id }}">{{ $c->nombre }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
 
-                                    {{-- Referencia --}}
-                                    @if ($this->requiereReferencia($i))
-                                        <div class="sm:col-span-2">
-                                            <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Referencia *</label>
-                                            <input type="text" wire:model="lineas.{{ $i }}.referencia"
-                                                   class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
-                                            @error("lineas.{$i}.referencia") <span class="text-[10px] text-red-500">{{ $message }}</span> @enderror
-                                        </div>
-                                    @endif
+                                                {{-- Referencia --}}
+                                                <div>
+                                                    <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Referencia de transacción *</label>
+                                                    <input type="text" wire:model="lineas.{{ $i }}.referencia" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs" placeholder="ID de operación">
+                                                </div>
+                                            </div>
+                                        @else
+                                            {{-- Formas bancarias tradicionales --}}
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-gray-200">
+                                                {{-- Banco Empresa --}}
+                                                <div>
+                                                    <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Banco Empresa</label>
+                                                    <select wire:model.live="lineas.{{ $i }}.banco" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
+                                                        <option value="">Seleccione banco...</option>
+                                                        @foreach ($this->getBancosConCuentas($linea['moneda']) as $b)
+                                                            <option value="{{ $b->nombre }}">{{ $b->nombre }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
 
-                                    {{-- Equivalencia --}}
-                                    <div class="col-span-full pt-2 border-t border-gray-200 text-xs">
-                                        <span class="text-gray-500">Equivale a:</span>
-                                        <span class="font-bold text-teal-700 ml-1">
-                                            Bs {{ number_format($this->calcularLineaBs($linea), 2) }}
-                                        </span>
-                                    </div>
+                                                {{-- Cuenta Empresa --}}
+                                                <div>
+                                                    <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Cuenta Empresa</label>
+                                                    <select wire:model="lineas.{{ $i }}.cuenta_id" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
+                                                        <option value="">Seleccione cuenta...</option>
+                                                        @if(!empty($linea['banco']))
+                                                            {{-- Consulta directa usando whereHas para relacionar con el nombre del banco --}}
+                                                            @foreach (\App\Models\Cuenta::whereHas('banco', fn($q) => $q->where('nombre', $linea['banco']))->where('moneda', $linea['moneda'])->where('activa', true)->get() as $c)
+                                                                <option value="{{ $c->id }}">{{ $c->nombre }} ({{ $c->numero_cuenta ?? 'S/N' }})</option>
+                                                            @endforeach
+                                                        @endif
+                                                    </select>
+                                                </div>
+
+                                                {{-- Banco Cliente --}}
+                                                <div>
+                                                    <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Banco Cliente</label>
+                                                    <select wire:model="lineas.{{ $i }}.banco_cliente" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs">
+                                                        <option value="">Seleccione banco del cliente...</option>
+                                                        @foreach (\App\Models\Banco::where('activo', true)->orderBy('nombre')->get() as $b)
+                                                            <option value="{{ $b->nombre }}">{{ $b->nombre }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                </div>
+
+                                                {{-- Referencia --}}
+                                                <div>
+                                                    <label class="block text-[10px] font-semibold text-gray-600 uppercase mb-1">Referencia</label>
+                                                    <input type="text" wire:model="lineas.{{ $i }}.referencia" class="w-full px-2 py-1.5 border border-gray-300 rounded text-xs" placeholder="Nro de comprobante">
+                                                </div>
+                                            </div>
+                                        @endif
+                                
+                                {{-- Equivalencia --}}
+                                <div class="mt-3 pt-2 border-t border-gray-200 text-xs">
+                                    <span class="text-gray-500">Equivale a:</span>
+                                    <span class="font-bold text-teal-700 ml-1">
+                                        Bs {{ number_format($this->calcularLineaBs($linea), 2) }}
+                                    </span>
                                 </div>
                             </div>
                         @endforeach

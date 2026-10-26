@@ -102,8 +102,7 @@ class Cuenta extends Model
         return match ($this->tipo) {
             'EFECTIVO' => 'Efectivo',
             'BANCO'    => 'Banco',
-            'DIVISA'   => 'Divisa',
-            'OTRO'     => 'Otro',
+            'PLATAFORMA DIGITAL'   => 'Plataforma Digital',
             default    => $this->tipo,
         };
     }

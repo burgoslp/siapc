@@ -147,17 +147,26 @@
                                 </span>
                             @endif
                         </a>
-                        <a href="{{ route('gastos.index') }}"
-                            class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('gastos.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
-                            Gastos
-                        </a>
                         <a href="{{ route('facturacion.cajas') }}"
                         class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('facturacion.cajas*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
                             Portadas
                         </a>
                     </div>
                 </div>
-                
+                {{-- ============================================================ --}}
+                {{-- MÓDULO: GASTOS --}}
+                {{-- ============================================================ --}}
+                <div class="pt-2">
+                    <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Gastos y Servicios</p>
+                    
+                    <a href="{{ route('gastos.index') }}"
+                       class="flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all {{ request()->routeIs('gastos.*') ? 'text-white bg-teal-600 shadow-md shadow-teal-600/20' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60' }}">
+                        <svg class="w-5 h-5 mr-3 {{ request()->routeIs('gastos.*') ? 'text-teal-100' : 'text-slate-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
+                        </svg>
+                        Gastos
+                    </a>
+                </div>
 
                 {{-- TESORERÍA --}}
                 @if (auth()->user()?->esAdmin())

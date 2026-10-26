@@ -123,14 +123,80 @@ new class extends Component
         ]);
 
         $datos['registrado_por'] = auth()->id();
+        \DB::transaction(function () use ($datos) {
 
-        if ($this->gastoId) {
-            Gasto::find($this->gastoId)?->update($datos);
-            session()->flash('success', 'Gasto actualizado correctamente.');
-        } else {
-            Gasto::create($datos);
-            session()->flash('success', 'Gasto registrado correctamente.');
-        }
+            if ($this->gastoId) {
+
+                // ============================================
+                // EDICIÓN DE GASTO
+                // ============================================
+                $gasto = Gasto::find($this->gastoId);
+                $cuentaAnteriorId = $gasto->cuenta_id;
+                $montoAnterior = (float) $gasto->monto;
+
+                $gasto->update($datos);
+
+                if ($cuentaAnteriorId) {
+                    $movimientoAnterior = \App\Models\MovimientoCuenta::where('origen_tipo', 'GASTO')
+                        ->where('origen_id', $gasto->id)
+                        ->first();
+                        
+                    if ($movimientoAnterior) {
+                        // Creamos un movimiento de ajuste (INGRESO) para devolver el dinero a la cuenta anterior
+                        $cuentaAnterior = \App\Models\Cuenta::find($cuentaAnteriorId);
+                        if ($cuentaAnterior) {
+                            $cuentaAnterior->movimientos()->create([
+                                'tipo' => 'INGRESO',
+                                'origen_tipo' => 'AJUSTE',
+                                'origen_id' => $gasto->id,
+                                'monto' => $movimientoAnterior->monto,
+                                'saldo_despues' => $cuentaAnterior->saldo_actual + $movimientoAnterior->monto,
+                                'fecha' => now(),
+                                'descripcion' => "Ajuste por edición de Gasto #{$gasto->id}",
+                            ]);
+                        }
+                        $movimientoAnterior->delete();
+                    }
+                }
+                
+                session()->flash('success', 'Gasto actualizado correctamente.');
+                
+            } else {
+                // ============================================
+                // NUEVO GASTO
+                // ============================================
+                $gasto = Gasto::create($datos);
+                session()->flash('success', 'Gasto registrado correctamente.');
+            }
+
+            // ============================================
+            // REGISTRO EN TESORERÍA (Nuevo Movimiento)
+            // ============================================
+            if ($gasto->cuenta_id) {
+                $cuenta = \App\Models\Cuenta::find($gasto->cuenta_id);
+                if ($cuenta) {
+                    $montoEnMonedaCuenta = (float) $gasto->monto;
+                    if ($cuenta->moneda !== $gasto->moneda) {
+                        if ($cuenta->moneda === 'bs' && $gasto->moneda === 'dolar' && $gasto->tasa_cambio) {
+                            $montoEnMonedaCuenta = (float) $gasto->monto * (float) $gasto->tasa_cambio;
+                        }
+                    }
+
+                    $nuevoSaldo = $cuenta->saldo_actual - $montoEnMonedaCuenta;
+
+                    $cuenta->movimientos()->create([
+                        'tipo' => 'EGRESO',
+                        'origen_tipo' => 'GASTO',
+                        'origen_id' => $gasto->id,
+                        'monto' => $montoEnMonedaCuenta,
+                        'saldo_despues' => $nuevoSaldo,
+                        'fecha' => now(),
+                        'descripcion' => "Gasto: {$gasto->concepto}",
+                    ]);
+                }
+            }
+        });
+        
 
         $this->modalAbierto = false;
         $this->dispatch('gasto-guardado');

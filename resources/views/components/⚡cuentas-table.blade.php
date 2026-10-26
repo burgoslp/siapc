@@ -132,8 +132,7 @@ new class extends Component
                 <option value="">Todos los tipos</option>
                 <option value="EFECTIVO">Efectivo</option>
                 <option value="BANCO">Banco</option>
-                <option value="DIVISA">Divisa</option>
-                <option value="OTRO">Otro</option>
+                <option value="PLATAFORMA DIGITAL">Plataforma Digital</option>
             </select>
 
             {{-- Estado --}}

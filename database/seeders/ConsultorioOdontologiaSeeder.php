@@ -327,7 +327,7 @@ class ConsultorioOdontologiaSeeder extends Seeder
             ],
             [
                 'nombre' => 'Zelle USD',
-                'tipo' => 'DIVISA',
+                'tipo' => 'PLATAFORMA DIGITAL',
                 'moneda' => 'dolar',
                 'banco_id' => null,
                 'numero_cuenta' => null,
@@ -336,7 +336,7 @@ class ConsultorioOdontologiaSeeder extends Seeder
             ],
             [
                 'nombre' => 'Binance USD',
-                'tipo' => 'DIVISA',
+                'tipo' => 'PLATAFORMA DIGITAL',
                 'moneda' => 'dolar',
                 'banco_id' => null,
                 'numero_cuenta' => null,

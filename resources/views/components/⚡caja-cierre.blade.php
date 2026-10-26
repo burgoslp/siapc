@@ -30,45 +30,89 @@ new class extends Component
         $this->resetErrorBag();
     }
 
-    public function confirmarCierre(): void
-    {
-        if (!$this->caja) {
-            return;
+        public function confirmarCierre(): void
+        {
+            if (!$this->caja) {
+                return;
+            }
+
+            // Verificar de nuevo que sigue abierta
+            $caja = Caja::find($this->caja->id);
+            if (!$caja || $caja->estado !== 'ABIERTA') {
+                session()->flash('error', 'La caja ya no está abierta.');
+                return;
+            }
+
+            // Calcular totales desde los pagos
+            $totales = $caja->totalesPorFormaPago();
+            $totalGeneral = array_sum($totales);
+
+            \DB::transaction(function () use ($caja, $totales, $totalGeneral) {
+                
+                // 1. Actualizar la Caja con el snapshot de los totales
+                $caja->update([
+                    'cerrada_por' => auth()->id(),
+                    'cerrada_en' => now(),
+                    'total_efectivo' => $totales['EFECTIVO'] ?? 0,
+                    'total_transferencia' => $totales['TRANSFERENCIA'] ?? 0,
+                    'total_pago_movil' => $totales['PAGO_MOVIL'] ?? 0,
+                    'total_tarjeta_debito' => $totales['TARJETA_DEBITO'] ?? 0,
+                    'total_tarjeta_credito' => $totales['TARJETA_CREDITO'] ?? 0,
+                    'total_zelle' => $totales['ZELLE'] ?? 0,
+                    'total_binance' => $totales['BINANCE'] ?? 0,
+                    'total_otros' => $totales['OTRO'] ?? 0,
+                    'total_general' => $totalGeneral,
+                    'observaciones_cierre' => $this->observaciones_cierre ?: null,
+                    'estado' => 'CERRADA',
+                ]);
+
+                // 2. Liquidar a Tesorería
+                // Agrupamos los pagos activos por cuenta_id para hacer un solo movimiento por cuenta
+                $pagosAgrupados = $caja->pagos()
+                    ->where('estado', 'ACTIVO')
+                    ->whereNotNull('cuenta_id')
+                    ->get()
+                    ->groupBy('cuenta_id');
+
+                foreach ($pagosAgrupados as $cuentaId => $pagosDeEstaCuenta) {
+                    $cuenta = \App\Models\Cuenta::find($cuentaId);
+                    if (!$cuenta) continue;
+
+                    $montoTotalEnCuenta = 0;
+
+                    // Sumamos los montos convirtiendo a la moneda de la cuenta
+                    foreach ($pagosDeEstaCuenta as $pago) {
+                        $monto = (float) $pago->monto;
+                        if ($cuenta->moneda !== $pago->moneda) {
+                            if ($cuenta->moneda === 'bs' && in_array($pago->moneda, ['dolar', 'euro'])) {
+                                $monto = (float) $pago->monto * (float) $pago->tasa_momento;
+                            }
+                        }
+                        $montoTotalEnCuenta += $monto;
+                    }
+
+                    // Solo creamos el movimiento si el monto es mayor a 0
+                    if ($montoTotalEnCuenta > 0) {
+                        $nuevoSaldo = $cuenta->saldo_actual + $montoTotalEnCuenta;
+
+                        $cuenta->movimientos()->create([
+                            'tipo' => 'INGRESO',
+                            'origen_tipo' => 'PAGO', // Origen: cierre de caja
+                            'origen_id' => $caja->id, // Usamos el ID de la caja como referencia
+                            'monto' => $montoTotalEnCuenta,
+                            'saldo_despues' => $nuevoSaldo,
+                            'fecha' => now(),
+                            'descripcion' => "Liquidación Cierre de Caja {$caja->codigo}",
+                        ]);
+                    }
+                }
+            });
+
+            $this->dispatch('caja-cerrada');
+            session()->flash('success', "Caja {$caja->codigo} cerrada y liquidada a tesorería correctamente.");
+            $this->abierto = false;
+            $this->redirect(route('facturacion.index'), navigate: false);
         }
-
-        // Verificar de nuevo que sigue abierta
-        $caja = Caja::find($this->caja->id);
-        if (!$caja || $caja->estado !== 'ABIERTA') {
-            session()->flash('error', 'La caja ya no está abierta.');
-            return;
-        }
-
-        // Calcular totales desde los pagos
-        $totales = $caja->totalesPorFormaPago();
-        $totalGeneral = array_sum($totales);
-
-        // Guardar snapshot de totales
-        $caja->update([
-            'cerrada_por' => auth()->id(),
-            'cerrada_en' => now(),
-            'total_efectivo' => $totales['EFECTIVO'] ?? 0,
-            'total_transferencia' => $totales['TRANSFERENCIA'] ?? 0,
-            'total_pago_movil' => $totales['PAGO_MOVIL'] ?? 0,
-            'total_tarjeta_debito' => $totales['TARJETA_DEBITO'] ?? 0,
-            'total_tarjeta_credito' => $totales['TARJETA_CREDITO'] ?? 0,
-            'total_zelle' => $totales['ZELLE'] ?? 0,
-            'total_binance' => $totales['BINANCE'] ?? 0,
-            'total_otros' => $totales['OTRO'] ?? 0,
-            'total_general' => $totalGeneral,
-            'observaciones_cierre' => $this->observaciones_cierre ?: null,
-            'estado' => 'CERRADA',
-        ]);
-
-        $this->dispatch('caja-cerrada');
-        session()->flash('success', "Caja {$caja->codigo} cerrada correctamente.");
-        $this->abierto = false;
-        $this->redirect(route('facturacion.index'), navigate: false);
-    }
 
     public function with(): array
     {

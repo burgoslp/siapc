@@ -3,6 +3,8 @@
 use Livewire\Component;
 use Livewire\Attributes\On;
 use App\Models\Pago;
+use App\Models\Cuenta;
+use App\Models\Banco;
 
 new class extends Component
 {
@@ -12,7 +14,9 @@ new class extends Component
     // Campos editables
     public $monto = '';
     public $forma_pago = 'EFECTIVO';
-    public $banco = '';
+    public $banco = ''; // Banco Empresa
+    public $cuenta_id = ''; // Cuenta Empresa
+    public $banco_cliente = ''; // Banco Cliente
     public $referencia = '';
     public $notas = '';
 
@@ -25,13 +29,11 @@ new class extends Component
             return;
         }
 
-        // Verificar caja abierta
         if (!$this->pago->caja || $this->pago->caja->estado !== 'ABIERTA') {
             session()->flash('error', 'No se puede editar un pago de una caja cerrada.');
             return;
         }
 
-        // Verificar que no esté anulado
         if ($this->pago->estado === 'ANULADO') {
             session()->flash('error', 'No se puede editar un pago anulado.');
             return;
@@ -41,6 +43,8 @@ new class extends Component
         $this->monto = $this->pago->monto;
         $this->forma_pago = $this->pago->forma_pago;
         $this->banco = $this->pago->banco ?? '';
+        $this->cuenta_id = $this->pago->cuenta_id ?? '';
+        $this->banco_cliente = $this->pago->banco_cliente ?? '';
         $this->referencia = $this->pago->referencia ?? '';
         $this->notas = $this->pago->notas ?? '';
 
@@ -55,7 +59,7 @@ new class extends Component
 
     public function getRequiereBancoProperty(): bool
     {
-        return in_array($this->forma_pago, ['TRANSFERENCIA', 'PAGO_MOVIL']);
+        return in_array($this->forma_pago, ['TRANSFERENCIA', 'PAGO_MOVIL', 'TARJETA_DEBITO', 'TARJETA_CREDITO', 'ZELLE', 'BINANCE']);
     }
 
     public function getRequiereReferenciaProperty(): bool
@@ -63,26 +67,62 @@ new class extends Component
         return in_array($this->forma_pago, ['TRANSFERENCIA', 'PAGO_MOVIL', 'ZELLE', 'BINANCE']);
     }
 
+    // Métodos para obtener las listas filtradas
+    public function getBancosConCuentas($moneda)
+    {
+        return Banco::whereHas('cuentas', function($q) use ($moneda) {
+            $q->where('moneda', $moneda)->where('activa', true);
+        })->orderBy('nombre')->get();
+    }
+
+    public function getCuentasDeBanco($bancoNombre, $moneda)
+    {
+        return Cuenta::whereHas('banco', fn($q) => $q->where('nombre', $bancoNombre))
+            ->where('moneda', $moneda)
+            ->where('activa', true)
+            ->get();
+    }
+
+    public function updatedFormaPago(): void
+    {
+        // Si cambia a efectivo, limpiamos los campos bancarios
+        if ($this->forma_pago === 'EFECTIVO') {
+            $this->banco = '';
+            $this->cuenta_id = '';
+            $this->banco_cliente = '';
+            $this->referencia = '';
+        }
+    }
+
+    public function updatedBanco(): void
+    {
+        // Si cambia el banco empresa, limpiamos la cuenta
+        $this->cuenta_id = '';
+    }
+
     public function guardar(): void
     {
         if (!$this->pago) return;
 
-        // Reglas base
         $rules = [
             'monto' => 'required|numeric|min:0.01',
             'forma_pago' => 'required|in:EFECTIVO,TRANSFERENCIA,PAGO_MOVIL,TARJETA_DEBITO,TARJETA_CREDITO,ZELLE,BINANCE,OTRO',
             'notas' => 'nullable|string|max:500',
         ];
 
-        if ($this->requiere_banco) {
+        // Validaciones condicionales
+        if (in_array($this->forma_pago, ['TRANSFERENCIA', 'PAGO_MOVIL'])) {
             $rules['banco'] = 'required|string|max:100';
-        } else {
-            $rules['banco'] = 'nullable|string|max:100';
-        }
-
-        if ($this->requiere_referencia) {
+            $rules['cuenta_id'] = 'required|exists:cuentas,id';
+            $rules['referencia'] = 'required|string|max:50';
+        } elseif (in_array($this->forma_pago, ['TARJETA_DEBITO', 'TARJETA_CREDITO', 'ZELLE', 'BINANCE'])) {
+            $rules['cuenta_id'] = 'required|exists:cuentas,id';
             $rules['referencia'] = 'required|string|max:50';
         } else {
+            // Para efectivo u otros
+            $rules['banco'] = 'nullable|string|max:100';
+            $rules['cuenta_id'] = 'nullable|exists:cuentas,id';
+            $rules['banco_cliente'] = 'nullable|string|max:100';
             $rules['referencia'] = 'nullable|string|max:50';
         }
 
@@ -103,7 +143,6 @@ new class extends Component
             $totalPagadoSinEstePago = (float) $cita->total_pagado - $montoAnteriorBs;
             $nuevoTotalPagado = $totalPagadoSinEstePago + $nuevoMontoBs;
 
-            // Convertir el total de la cita a Bs usando la tasa de la cita
             $totalCitaBs = (float) $cita->total * (float) $cita->monto_tasa_cambio;
             $tolerancia = 1.00;
 
@@ -113,14 +152,26 @@ new class extends Component
             }
         }
 
-        \DB::transaction(function () use ($datos, $montoAnteriorBs, $nuevoMontoBs) {
+        // Determinar cuenta final (si es efectivo, buscar caja chica)
+        $cuentaIdFinal = $this->cuenta_id;
+        if ($this->forma_pago === 'EFECTIVO') {
+            $cuentaCajaChica = Cuenta::where('tipo', 'EFECTIVO')
+                ->where('moneda', $this->pago->moneda)
+                ->where('activa', true)
+                ->first();
+            $cuentaIdFinal = $cuentaCajaChica ? $cuentaCajaChica->id : null;
+        }
+
+        \DB::transaction(function () use ($datos, $montoAnteriorBs, $nuevoMontoBs, $cuentaIdFinal) {
             // 1. Actualizar el pago
             $this->pago->update([
                 'monto' => $datos['monto'],
                 'forma_pago' => $datos['forma_pago'],
-                'banco' => $datos['banco'] ?: null,
-                'referencia' => $datos['referencia'] ?: null,
-                'notas' => $datos['notas'] ?: null,
+                'cuenta_id' => $cuentaIdFinal,
+                'banco' => $datos['banco'] ?? null,
+                'banco_cliente' => $datos['banco_cliente'] ?? null,
+                'referencia' => $datos['referencia'] ?? null,
+                'notas' => $datos['notas'] ?? null,
             ]);
 
             // 2. Ajustar el acumulador de la cita
@@ -132,7 +183,6 @@ new class extends Component
                 ));
                 $cita->save();
 
-                // 3. Recalcular estado de pago
                 $cita->refresh();
                 $cita->load('pagos');
                 $cita->recalcularEstadoPago();
@@ -152,8 +202,7 @@ new class extends Component
     @if ($abierto && $pago)
         <div class="fixed inset-0 bg-black/50 z-40" wire:click="cerrar"></div>
 
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4"
-             wire:click.self="cerrar">
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4" wire:click.self="cerrar">
             <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[95vh] overflow-y-auto">
 
                 {{-- Encabezado --}}
@@ -250,26 +299,75 @@ new class extends Component
                             </select>
                         </div>
 
-                        {{-- Banco --}}
-                        @if ($this->requiere_banco)
-                            <div class="sm:col-span-2">
-                                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                                    Banco *
-                                </label>
-                                <input type="text" wire:model="banco"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                        {{-- 👇 CAMPOS SEGÚN FORMA DE PAGO 👇 --}}
+                        @if ($forma_pago === 'EFECTIVO')
+                            <p class="sm:col-span-2 text-[10px] text-teal-600 italic mt-2">
+                                * El dinero ingresará automáticamente a la Caja Chica ({{ strtoupper($pago->moneda) }}).
+                            </p>
+
+                        @elseif (in_array($forma_pago, ['ZELLE', 'BINANCE']))
+                            {{-- Plataformas Digitales --}}
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Plataforma Digital *</label>
+                                <select wire:model.live="cuenta_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <option value="">Seleccione plataforma...</option>
+                                    @foreach (\App\Models\Cuenta::where('tipo', 'PLATAFORMA DIGITAL')->where('moneda', $pago->moneda)->where('activa', true)->get() as $c)
+                                        <option value="{{ $c->id }}">{{ $c->nombre }}</option>
+                                    @endforeach
+                                </select>
+                                @error('cuenta_id') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                            </div>
+
+                            {{-- Referencia --}}
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Referencia *</label>
+                                <input type="text" wire:model="referencia" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                @error('referencia') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                            </div>
+
+                        @else
+                            {{-- Transferencia / Pago Móvil / Tarjeta --}}
+                            {{-- Banco Empresa --}}
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Banco Empresa *</label>
+                                <select wire:model.live="banco" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <option value="">Seleccione banco...</option>
+                                    @foreach ($this->getBancosConCuentas($pago->moneda) as $b)
+                                        <option value="{{ $b->nombre }}">{{ $b->nombre }}</option>
+                                    @endforeach
+                                </select>
                                 @error('banco') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
-                        @endif
 
-                        {{-- Referencia --}}
-                        @if ($this->requiere_referencia)
-                            <div class="sm:col-span-2">
-                                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                                    Referencia *
-                                </label>
-                                <input type="text" wire:model="referencia"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            {{-- Cuenta Empresa --}}
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Cuenta Empresa *</label>
+                                <select wire:model="cuenta_id" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <option value="">Seleccione cuenta...</option>
+                                    @if(!empty($banco))
+                                        @foreach ($this->getCuentasDeBanco($banco, $pago->moneda) as $c)
+                                            <option value="{{ $c->id }}">{{ $c->nombre }} ({{ $c->numero_cuenta ?? 'S/N' }})</option>
+                                        @endforeach
+                                    @endif
+                                </select>
+                                @error('cuenta_id') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                            </div>
+
+                            {{-- Banco Cliente --}}
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Banco Cliente</label>
+                                <select wire:model="banco_cliente" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <option value="">Seleccione banco del cliente...</option>
+                                    @foreach (\App\Models\Banco::where('activo', true)->orderBy('nombre')->get() as $b)
+                                        <option value="{{ $b->nombre }}">{{ $b->nombre }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+
+                            {{-- Referencia --}}
+                            <div>
+                                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Referencia *</label>
+                                <input type="text" wire:model="referencia" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                 @error('referencia') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
                         @endif

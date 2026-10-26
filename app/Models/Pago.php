@@ -58,6 +58,11 @@ class Pago extends Model
         return $this->belongsTo(User::class, 'anulado_por');
     }
 
+    public function cuenta(): BelongsTo
+    {
+        return $this->belongsTo(Cuenta::class, 'cuenta_id');
+    }
+
     // ============================================================
     // ACCESSORS DE CONVERSIÓN
     // ============================================================

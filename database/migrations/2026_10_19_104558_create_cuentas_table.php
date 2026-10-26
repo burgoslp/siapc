@@ -17,7 +17,7 @@ return new class extends Migration
                   ->nullOnDelete();
 
             $table->string('nombre', 100);
-            $table->enum('tipo', ['EFECTIVO', 'BANCO', 'DIVISA', 'OTRO']);
+            $table->enum('tipo', ['EFECTIVO', 'BANCO', 'PLATAFORMA DIGITAL']);
             $table->enum('moneda', ['dolar', 'euro', 'bs']);
 
             // Datos del titular

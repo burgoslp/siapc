@@ -113,7 +113,7 @@ new class extends Component
         // Validar cuenta
         $datos = $this->validate([
             'nombre' => 'required|string|max:100',
-            'tipo' => 'required|in:EFECTIVO,BANCO,DIVISA,OTRO',
+            'tipo' => 'required|in:EFECTIVO,BANCO,PLATAFORMA DIGITAL',
             'moneda' => 'required|in:dolar,euro,bs',
             'banco_id' => 'nullable|exists:bancos,id',
             'lci' => 'required|in:V,J',
@@ -255,8 +255,7 @@ new class extends Component
                                 <select wire:model.live="tipo" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                     <option value="EFECTIVO">Efectivo</option>
                                     <option value="BANCO">Banco</option>
-                                    <option value="DIVISA">Divisa</option>
-                                    <option value="OTRO">Otro</option>
+                                    <option value="PLATAFORMA DIGITAL">Plataforma Digital</option>
                                 </select>
                             </div>
 
