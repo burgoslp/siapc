@@ -17,6 +17,8 @@ use App\Models\Role;
 use App\Models\Tarifa;
 use App\Models\Tasa;
 use App\Models\User;
+use App\Models\CondicionPaciente;
+use App\Models\AlergiaPaciente;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
@@ -537,6 +539,110 @@ class ConsultorioOdontologiaSeeder extends Seeder
         }
 
         $this->command->info('✅ ' . count($pacientes) . ' pacientes cargados.');
+
+        // ============================================================
+        // 13. ASIGNAR CONDICIONES Y ALERGIAS A PACIENTES DE PRUEBA
+        // ============================================================
+        
+        // Diccionario de perfiles clínicos por cédula
+        $perfilesClinicos = [
+            '20001001' => [ // María González
+                'condiciones' => [['nombre' => 'Embarazo', 'severidad' => 'MODERADA', 'estado' => 'ACTIVA']],
+                'alergias' => [['nombre' => 'Penicilina', 'severidad' => 'GRAVE', 'tipo_reaccion' => 'CUTANEA']],
+            ],
+            '20004004' => [ // Carlos Pérez
+                'condiciones' => [
+                    ['nombre' => 'Diabetes Mellitus Tipo 2', 'severidad' => 'MODERADA', 'estado' => 'CONTROLADA'],
+                    ['nombre' => 'Hipertensión Arterial', 'severidad' => 'LEVE', 'estado' => 'CONTROLADA'],
+                ],
+                'alergias' => [],
+            ],
+            '20008008' => [ // Luis Torres
+                'condiciones' => [
+                    ['nombre' => 'Hipertensión Arterial', 'severidad' => 'GRAVE', 'estado' => 'ACTIVA'],
+                    ['nombre' => 'Insuficiencia Renal Crónica', 'severidad' => 'MODERADA', 'estado' => 'ACTIVA'],
+                ],
+                'alergias' => [['nombre' => 'Ibuprofeno', 'severidad' => 'MODERADA', 'tipo_reaccion' => 'DIGESTIVA']],
+            ],
+            '20016016' => [ // Fernando Guerrero
+                'condiciones' => [['nombre' => 'Asma Bronquial', 'severidad' => 'MODERADA', 'estado' => 'ACTIVA']],
+                'alergias' => [['nombre' => 'Látex', 'severidad' => 'GRAVE', 'tipo_reaccion' => 'ANAFILACTICA']],
+            ],
+            '20020020' => [ // Héctor Gutiérrez
+                'condiciones' => [
+                    ['nombre' => 'Diabetes Mellitus Tipo 2', 'severidad' => 'GRAVE', 'estado' => 'ACTIVA'],
+                    ['nombre' => 'Cardiopatía Isquémica', 'severidad' => 'MODERADA', 'estado' => 'ACTIVA'],
+                ],
+                'alergias' => [
+                    ['nombre' => 'Penicilina', 'severidad' => 'GRAVE', 'tipo_reaccion' => 'ANAFILACTICA'],
+                    ['nombre' => 'Aspirina (AAS)', 'severidad' => 'MODERADA', 'tipo_reaccion' => 'RESPIRATORIA'],
+                ],
+            ],
+            '20024024' => [ // Raúl Domínguez
+                'condiciones' => [],
+                'alergias' => [
+                    ['nombre' => 'Níquel', 'severidad' => 'MODERADA', 'tipo_reaccion' => 'CUTANEA'],
+                    ['nombre' => 'Cromo', 'severidad' => 'LEVE', 'tipo_reaccion' => 'CUTANEA'],
+                ],
+            ],
+            '20028028' => [ // Gustavo Fuentes
+                'condiciones' => [['nombre' => 'Epilepsia', 'severidad' => 'MODERADA', 'estado' => 'CONTROLADA']],
+                'alergias' => [],
+            ],
+            '20011011' => [ // Valentina Silva (joven)
+                'condiciones' => [],
+                'alergias' => [['nombre' => 'Amoxicilina', 'severidad' => 'LEVE', 'tipo_reaccion' => 'CUTANEA']],
+            ]
+        ];
+
+        $totalCondicionesAsignadas = 0;
+        $totalAlergiasAsignadas = 0;
+
+        foreach ($perfilesClinicos as $cedula => $perfil) {
+            $paciente = Paciente::where('ci', $cedula)->first();
+            if (!$paciente) continue;
+
+            // Asignar Condiciones
+            foreach ($perfil['condiciones'] as $condData) {
+                $condicion = Condicion::where('nombre', $condData['nombre'])->first();
+                if ($condicion) {
+                    CondicionPaciente::updateOrCreate(
+                        ['id_paciente' => $paciente->id, 'id_condicion' => $condicion->id],
+                        [
+                            'severidad' => $condData['severidad'],
+                            'estado' => $condData['estado'],
+                            'fecha_diagnostico' => now()->subMonths(rand(1, 24)),
+                            'diagnostico_por' => 'Dr. Carlos Mendoza',
+                            'notas' => 'Diagnóstico registrado en historia clínica.',
+                        ]
+                    );
+                    $totalCondicionesAsignadas++;
+                }
+            }
+
+            // Asignar Alergias
+            foreach ($perfil['alergias'] as $alergiaData) {
+                $alergeno = Alergeno::where('nombre', $alergiaData['nombre'])->first();
+                if ($alergeno) {
+                    AlergiaPaciente::updateOrCreate(
+                        ['id_paciente' => $paciente->id, 'id_alergeno' => $alergeno->id],
+                        [
+                            'tipo_reaccion' => $alergiaData['tipo_reaccion'],
+                            'severidad' => $alergiaData['severidad'],
+                            'estado' => 'CONFIRMADA',
+                            'fecha_diagnostico' => now()->subMonths(rand(1, 12)),
+                            'observaciones' => 'Alergia detectada en consulta previa.',
+                        ]
+                    );
+                    $totalAlergiasAsignadas++;
+                }
+            }
+        }
+
+        $this->command->info("✅ {$totalCondicionesAsignadas} condiciones y {$totalAlergiasAsignadas} alergias asignadas a pacientes.");
+
+
+
 
         // ============================================================
         // RESUMEN FINAL

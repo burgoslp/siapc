@@ -1,5 +1,5 @@
 @extends('layouts.base')
-
+@section('title', config('app.name', 'SIAPC') . ' - Gestión de gastos y pago de servicios')
 @section('contenido')
 <div class="container mx-auto px-4 py-6">
     <div class="mb-6">

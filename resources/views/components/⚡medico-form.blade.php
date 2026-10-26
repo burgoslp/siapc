@@ -1,15 +1,19 @@
 <?php
 
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\Attributes\On;
 use App\Models\Medico;
 use App\Models\User;
 use App\Models\Role;
 use App\Models\Especialidad;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 new class extends Component
 {
+    use WithFileUploads; // 👈 IMPORTANTE
+
     public ?int $medicoId = null;
     public bool $abierto = false;
 
@@ -24,6 +28,10 @@ new class extends Component
     // Datos profesionales
     public $licencia_medica = '';
     public $especialidadesSeleccionadas = [];
+    
+    // Firma Digital
+    public $firmaFile;      // Archivo temporal
+    public $firmaActual;    // Ruta guardada en BD
 
     // Datos de acceso (opcional)
     public bool $tieneAcceso = false;
@@ -41,6 +49,8 @@ new class extends Component
         $this->especialidadesSeleccionadas = [];
         $this->tieneAcceso = false;
         $this->medicoId = null;
+        $this->firmaFile = null;
+        $this->firmaActual = null;
         $this->abierto = true;
     }
 
@@ -59,6 +69,10 @@ new class extends Component
         $this->estado = $medico->estado;
         $this->licencia_medica = $medico->licencia_medica;
         $this->especialidadesSeleccionadas = $medico->especialidades->pluck('id')->toArray();
+        
+        // Cargar firma
+        $this->firmaActual = $medico->firma_path;
+        $this->firmaFile = null;
 
         // Si tiene user, marcar el checkbox y cargar los datos
         if ($medico->user) {
@@ -86,9 +100,7 @@ new class extends Component
     {
         $esCreando = $this->medicoId === null;
 
-        // ==============================
         // Reglas base
-        // ==============================
         $rules = [
             'nombre' => 'required|string|max:255',
             'apellido' => 'required|string|max:255',
@@ -99,11 +111,10 @@ new class extends Component
             'licencia_medica' => 'required|string|max:50|unique:medicos,licencia_medica,' . ($this->medicoId ?? 'NULL'),
             'especialidadesSeleccionadas' => 'array',
             'especialidadesSeleccionadas.*' => 'exists:especialidades,id',
+            'firmaFile' => 'nullable|image|max:2048', // Máximo 2MB
         ];
 
-        // ==============================
-        // Reglas de acceso (solo si tieneAcceso)
-        // ==============================
+        // Reglas de acceso
         if ($this->tieneAcceso) {
             $userId = $this->medicoId
                 ? Medico::find($this->medicoId)?->user_id
@@ -112,7 +123,6 @@ new class extends Component
             $rules['username'] = 'required|string|max:50|alpha_dash|unique:users,username,' . ($userId ?? 'NULL');
             $rules['email'] = 'required|email|max:255|unique:users,email,' . ($userId ?? 'NULL');
 
-            // Password: obligatorio al crear o si se está activando el acceso por primera vez
             $userExiste = $userId !== null;
             if (!$userExiste) {
                 $rules['password'] = 'required|string|min:6|confirmed';
@@ -125,10 +135,18 @@ new class extends Component
 
         \DB::transaction(function () use ($datos, $esCreando) {
 
+            // Manejar la subida de la firma
+            $firmaPath = $this->firmaActual;
+            if ($this->firmaFile) {
+                // Borrar la firma anterior si existe
+                if ($this->firmaActual && Storage::disk('public')->exists($this->firmaActual)) {
+                    Storage::disk('public')->delete($this->firmaActual);
+                }
+                // Guardar la nueva firma
+                $firmaPath = $this->firmaFile->store('firmas', 'public');
+            }
+
             if ($esCreando) {
-                // ==============================
-                // CREAR MÉDICO
-                // ==============================
                 $medico = Medico::create([
                     'nombre' => $datos['nombre'],
                     'apellido' => $datos['apellido'],
@@ -137,9 +155,9 @@ new class extends Component
                     'telefono' => $datos['telefono'] ?: null,
                     'estado' => $datos['estado'],
                     'licencia_medica' => $datos['licencia_medica'],
+                    'firma_path' => $firmaPath, // 👈 Guardar firma
                 ]);
 
-                // Si quiere acceso, crear user y anclarlo
                 if ($this->tieneAcceso) {
                     $user = User::create([
                         'username' => $datos['username'],
@@ -157,13 +175,9 @@ new class extends Component
                 }
 
                 $medico->especialidades()->sync($this->especialidadesSeleccionadas);
-
                 session()->flash('success', 'Médico creado correctamente.');
 
             } else {
-                // ==============================
-                // EDITAR MÉDICO
-                // ==============================
                 $medico = Medico::with('user')->find($this->medicoId);
                 if (!$medico) return;
 
@@ -175,25 +189,20 @@ new class extends Component
                     'telefono' => $datos['telefono'] ?: null,
                     'estado' => $datos['estado'],
                     'licencia_medica' => $datos['licencia_medica'],
+                    'firma_path' => $firmaPath, // 👈 Actualizar firma
                 ]);
 
-                // Caso A: El médico YA tenía user y sigue teniendo acceso
                 if ($medico->user && $this->tieneAcceso) {
                     $userData = [
                         'username' => $datos['username'],
                         'email' => $datos['email'],
                         'activo' => true,
                     ];
-
                     if (!empty($datos['password'])) {
                         $userData['password'] = Hash::make($datos['password']);
                     }
-
                     $medico->user->update($userData);
-                }
-
-                // Caso B: El médico NO tenía user y ahora quiere acceso
-                elseif (!$medico->user && $this->tieneAcceso) {
+                } elseif (!$medico->user && $this->tieneAcceso) {
                     $user = User::create([
                         'username' => $datos['username'],
                         'email' => $datos['email'],
@@ -207,17 +216,12 @@ new class extends Component
                     }
 
                     $medico->update(['user_id' => $user->id]);
-                }
-
-                // Caso C: El médico TENÍA user y ahora quiere quitarle el acceso
-                elseif ($medico->user && !$this->tieneAcceso) {
-                    // No se borra el user, solo se desactiva y se desancla
+                } elseif ($medico->user && !$this->tieneAcceso) {
                     $medico->user->update(['activo' => false]);
                     $medico->update(['user_id' => null]);
                 }
 
                 $medico->especialidades()->sync($this->especialidadesSeleccionadas);
-
                 session()->flash('success', 'Médico actualizado correctamente.');
             }
         });
@@ -239,8 +243,7 @@ new class extends Component
     @if ($abierto)
         <div class="fixed inset-0 bg-black/50 z-40" wire:click="cerrar"></div>
 
-        <div class="fixed inset-0 z-50 flex items-center justify-center p-4"
-             wire:click.self="cerrar">
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4" wire:click.self="cerrar">
             <div class="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[95vh] overflow-y-auto">
 
                 {{-- Encabezado --}}
@@ -263,21 +266,16 @@ new class extends Component
                             Datos Personales
                         </h4>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Nombre *</label>
-                                <input type="text" wire:model="nombre"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <input type="text" wire:model="nombre" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                 @error('nombre') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
-
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Apellido *</label>
-                                <input type="text" wire:model="apellido"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <input type="text" wire:model="apellido" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                 @error('apellido') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
-
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Cédula *</label>
                                 <div class="flex gap-2">
@@ -287,16 +285,13 @@ new class extends Component
                                         <option value="J">J</option>
                                         <option value="P">P</option>
                                     </select>
-                                    <input type="text" wire:model="ci" placeholder="12345678"
-                                           class="w-2/3 px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <input type="text" wire:model="ci" placeholder="12345678" class="w-2/3 px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                 </div>
                                 @error('ci') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
-
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Teléfono</label>
-                                <input type="text" wire:model="telefono" placeholder="0414-1234567"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <input type="text" wire:model="telefono" placeholder="0414-1234567" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                 @error('telefono') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
                         </div>
@@ -308,14 +303,11 @@ new class extends Component
                             Datos Profesionales
                         </h4>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Licencia Médica *</label>
-                                <input type="text" wire:model="licencia_medica" placeholder="MPPS-12345"
-                                       class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <input type="text" wire:model="licencia_medica" placeholder="MPPS-12345" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                 @error('licencia_medica') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
-
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Estado *</label>
                                 <select wire:model="estado" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
@@ -325,18 +317,12 @@ new class extends Component
                                 </select>
                                 @error('estado') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
-
                             <div class="sm:col-span-2">
-                                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                                    Especialidades
-                                </label>
+                                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Especialidades</label>
                                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1 p-3 border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
                                     @foreach ($todasLasEspecialidades as $esp)
                                         <label class="flex items-center cursor-pointer text-sm">
-                                            <input type="checkbox"
-                                                   wire:model="especialidadesSeleccionadas"
-                                                   value="{{ $esp->id }}"
-                                                   class="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500">
+                                            <input type="checkbox" wire:model="especialidadesSeleccionadas" value="{{ $esp->id }}" class="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500">
                                             <span class="ml-2 text-gray-700">{{ $esp->nombre }}</span>
                                         </label>
                                     @endforeach
@@ -346,58 +332,66 @@ new class extends Component
                         </div>
                     </div>
 
+                    {{-- SECCIÓN: Firma Digital --}}
+                    <div class="mb-6">
+                        <h4 class="text-sm font-bold text-teal-700 uppercase tracking-wide mb-3">
+                            Firma Digital
+                        </h4>
+                        <div class="p-4 border border-gray-200 rounded-lg bg-gray-50/50">
+                            <div class="flex flex-col sm:flex-row items-center gap-6">
+                                {{-- Previsualización de la firma --}}
+                                <div class="w-48 h-24 bg-white border border-gray-300 rounded-lg flex items-center justify-center overflow-hidden shrink-0">
+                                    @if ($firmaFile)
+                                        <img src="{{ $firmaFile->temporaryUrl() }}" class="max-h-full max-w-full object-contain" alt="Previsualización">
+                                    @elseif ($firmaActual)
+                                        <img src="{{ \Illuminate\Support\Facades\Storage::url($firmaActual) }}" class="max-h-full max-w-full object-contain" alt="Firma actual">
+                                    @else
+                                        <span class="text-xs text-gray-400 text-center px-2">Sin firma<br>(Sube una imagen PNG)</span>
+                                    @endif
+                                </div>
+
+                                {{-- Input para subir --}}
+                                <div class="flex-1 w-full">
+                                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-2">Subir Firma (PNG con fondo transparente)</label>
+                                    <input type="file" wire:model="firmaFile" accept="image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 transition">
+                                    <div wire:loading wire:target="firmaFile" class="text-xs text-teal-600 mt-2">Subiendo firma...</div>
+                                    @error('firmaFile') <span class="text-xs text-red-500 block mt-1">{{ $message }}</span> @enderror
+                                    <p class="text-[10px] text-gray-500 mt-2">La firma se usará automáticamente en los PDFs de recetas e informes.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {{-- SECCIÓN: Acceso al sistema (opcional) --}}
                     <div class="mb-6">
                         <div class="p-4 border border-gray-200 rounded-lg bg-gray-50/50">
                             <label class="flex items-center cursor-pointer">
-                                <input type="checkbox"
-                                       wire:model.live="tieneAcceso"
-                                       class="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500">
-                                <span class="ml-2 text-sm font-semibold text-gray-800">
-                                    ¿Suministrar datos de acceso al sistema?
-                                </span>
+                                <input type="checkbox" wire:model.live="tieneAcceso" class="w-4 h-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500">
+                                <span class="ml-2 text-sm font-semibold text-gray-800">¿Suministrar datos de acceso al sistema?</span>
                             </label>
-                            <p class="text-xs text-gray-500 mt-1 ml-6">
-                                Activa esta opción si el médico debe poder iniciar sesión en el sistema.
-                            </p>
+                            <p class="text-xs text-gray-500 mt-1 ml-6">Activa esta opción si el médico debe poder iniciar sesión en el sistema.</p>
                         </div>
 
                         @if ($tieneAcceso)
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4 pl-6 border-l-2 border-teal-200">
-
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Usuario *</label>
-                                    <input type="text" wire:model="username" placeholder="cmendoza"
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <input type="text" wire:model="username" placeholder="cmendoza" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                     @error('username') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                                 </div>
-
                                 <div>
                                     <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Email *</label>
-                                    <input type="email" wire:model="email" placeholder="cmendoza@clinica.test"
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <input type="email" wire:model="email" placeholder="cmendoza@clinica.test" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                     @error('email') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                                 </div>
-
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                                        Contraseña
-                                        @if (!$medicoId || !Medico::find($medicoId)?->user_id)
-                                            *
-                                        @endif
-                                    </label>
-                                    <input type="password" wire:model="password"
-                                           placeholder="{{ $medicoId && Medico::find($medicoId)?->user_id ? 'Dejar en blanco para no cambiar' : 'Mínimo 6 caracteres' }}"
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Contraseña @if (!$medicoId || !Medico::find($medicoId)?->user_id) * @endif</label>
+                                    <input type="password" wire:model="password" placeholder="{{ $medicoId && Medico::find($medicoId)?->user_id ? 'Dejar en blanco para no cambiar' : 'Mínimo 6 caracteres' }}" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                     @error('password') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                                 </div>
-
                                 <div>
-                                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">
-                                        Confirmar Contraseña
-                                    </label>
-                                    <input type="password" wire:model="password_confirmation"
-                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Confirmar Contraseña</label>
+                                    <input type="password" wire:model="password_confirmation" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                                 </div>
                             </div>
                         @endif
@@ -405,12 +399,8 @@ new class extends Component
 
                     {{-- Botones --}}
                     <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-                        <button type="button" wire:click="cerrar"
-                                class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
-                            Cancelar
-                        </button>
-                        <button type="submit"
-                                class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium">
+                        <button type="button" wire:click="cerrar" class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">Cancelar</button>
+                        <button type="submit" class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium">
                             {{ $medicoId ? 'Guardar Cambios' : 'Crear Médico' }}
                         </button>
                     </div>

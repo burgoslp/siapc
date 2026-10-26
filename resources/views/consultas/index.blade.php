@@ -1,5 +1,5 @@
 @extends('layouts.base')
-
+@section('title', config('app.name', 'SIAPC') . ' - Atención de consultas')
 @section('contenido')
 <div class="container mx-auto px-4 py-6">
 

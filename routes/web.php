@@ -16,6 +16,7 @@ use App\Http\Controllers\CuentaController;
 use App\Http\Controllers\MovimientoEntreCuentaController;
 use App\Http\Controllers\EmpresaController;
 use App\Http\Controllers\GastoController;
+use App\Http\Controllers\ReporteController;
 /*
 |--------------------------------------------------------------------------
 | Rutas autenticadas (cualquier rol)
@@ -77,6 +78,11 @@ Route::middleware(['auth', 'role:admin'])->prefix('parametros')->group(function 
         Route::get('cuentas', [CuentaController::class, 'index'])->name('tesoreria.cuentas.index');
         Route::get('movimientos', [MovimientoEntreCuentaController::class, 'index'])->name('tesoreria.movimientos.index');
 
+    });
+
+    Route::prefix('reportes')->name('reportes.')->group(function () {
+        Route::get('/financiero', [ReporteController::class, 'financiero'])->name('financiero');
+        Route::get('/productividad', [ReporteController::class, 'productividad'])->name('productividad');
     });
 
 });

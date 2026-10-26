@@ -1,5 +1,5 @@
 @extends('layouts.base')
-
+@section('title', config('app.name', 'SIAPC') . ' - Caja y Facturación')
 @section('contenido')
 @php
     $formas = [
@@ -12,26 +12,11 @@
         'BINANCE'         => ['label' => 'Binance',        'color' => 'amber'],
         'OTRO'            => ['label' => 'Otro',           'color' => 'gray'],
     ];
-
-    $totales = $cajaDisponible->totalesPorFormaPago();
-    
-    $efectivoUsd = $cajaDisponible->pagos()
-    ->where('estado', 'ACTIVO')
-    ->where('forma_pago', 'EFECTIVO')
-    ->where('moneda', 'dolar')
-    ->sum('monto');
-    
-    $efectivoBs = $cajaDisponible->pagos()
-    ->where('estado', 'ACTIVO')
-    ->where('forma_pago', 'EFECTIVO')
-    ->where('moneda', 'bs')
-    ->sum('monto');
 @endphp
+
 <div class="container mx-auto px-4 py-6 space-y-6">
 
-    {{-- ============================================================ --}}
     {{-- ENCABEZADO --}}
-    {{-- ============================================================ --}}
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold text-gray-800">Facturación y Pagos</h1>
@@ -53,9 +38,7 @@
         </div>
     @endif
 
-    {{-- ============================================================ --}}
     {{-- ALERTA: CAJA VENCIDA --}}
-    {{-- ============================================================ --}}
     @if ($cajaVencida)
         <div class="bg-white rounded-2xl shadow-sm border border-red-300 ring-1 ring-red-100 overflow-hidden">
             <div class="bg-red-50 border-b border-red-200 px-6 py-4">
@@ -162,15 +145,29 @@
                         </div>
                     </div>
                 </div>
-                </div>
             </div>
         </div>
     @endif
 
-    {{-- ============================================================ --}}
     {{-- CAJA ABIERTA DE HOY --}}
-    {{-- ============================================================ --}}
     @if ($cajaDisponible && !$cajaVencida)
+        @php
+            // 👇 MOVEMOS LAS VARIABLES AQUÍ ADENTRO 👇
+            $totales = $cajaDisponible->totalesPorFormaPago();
+            
+            $efectivoUsd = $cajaDisponible->pagos()
+                ->where('estado', 'ACTIVO')
+                ->where('forma_pago', 'EFECTIVO')
+                ->where('moneda', 'dolar')
+                ->sum('monto');
+                
+            $efectivoBs = $cajaDisponible->pagos()
+                ->where('estado', 'ACTIVO')
+                ->where('forma_pago', 'EFECTIVO')
+                ->where('moneda', 'bs')
+                ->sum('monto');
+        @endphp
+
         <div class="bg-white rounded-2xl shadow-sm border border-teal-200 ring-1 ring-teal-100 overflow-hidden">
             <div class="bg-teal-50 border-b border-teal-100 px-6 py-4">
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -221,12 +218,8 @@
                     Totales por forma de pago (en tiempo real)
                 </p>
 
-                @php
-                    $totales = $cajaDisponible->totalesPorFormaPago();
-                @endphp
-
-                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {{-- 👇 EFECTIVO USD --}}
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {{-- EFECTIVO USD --}}
                     <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
                         <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
                             Efectivo USD
@@ -236,7 +229,7 @@
                         </p>
                     </div>
 
-                    {{-- 👇 EFECTIVO BS --}}
+                    {{-- EFECTIVO BS --}}
                     <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
                         <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
                             Efectivo Bs
@@ -248,7 +241,6 @@
 
                     {{-- OTROS MÉTODOS DE PAGO --}}
                     @foreach ($formas as $key => $info)
-                        {{-- Saltamos EFECTIVO porque ya lo mostramos desglosado --}}
                         @if ($key !== 'EFECTIVO')
                             <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
                                 <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
@@ -260,7 +252,7 @@
                             </div>
                         @endif
                     @endforeach
-            </div>
+                </div>
 
                 <div class="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
                     <div>
@@ -317,9 +309,7 @@
         </div>
     @endif
 
-    {{-- ============================================================ --}}
     {{-- ÚLTIMO CIERRE --}}
-    {{-- ============================================================ --}}
     @if ($ultimaCajaCerrada && !$cajaDisponible && !$cajaVencida)
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div class="px-6 py-4 border-b border-gray-100">
@@ -406,9 +396,7 @@
         </div>
     @endif
 
-    {{-- ============================================================ --}}
     {{-- CITAS PENDIENTES POR COBRAR --}}
-    {{-- ============================================================ --}}
     <livewire:citas-por-cobrar-table :cajaVencida="$cajaVencida ? true : false" :cajaDisponible="$cajaDisponible ? true : false" />
     <livewire:caja-apertura />
     <livewire:caja-cierre />

@@ -1,5 +1,5 @@
 @extends('layouts.base')
-
+@section('title', config('app.name', 'SIAPC') . ' - Gestión de citas')
 @section('contenido')
 <div class="container mx-auto px-4 py-6"
      x-data="{ vista: localStorage.getItem('citas-vista') || 'lista' }"

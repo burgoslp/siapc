@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title', config('app.name', 'SIAPC'))</title>
-
+    <link rel="icon" type="image/png" href="{{ asset('images/favicon/favicon.png') }}">
     
 
     {{-- Google Fonts: Inter --}}
@@ -197,6 +197,39 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
                                 </svg>
                                 Movimientos
+                            </a>
+                        </div>
+                    </div>
+                @endif
+
+                {{-- ============================================================ --}}
+                {{-- MÓDULO: REPORTES --}}
+                {{-- ============================================================ --}}
+                @if (auth()->user()?->esAdmin() || auth()->user()?->puedeVerTodo())
+                    <div x-data="{ open: {{ request()->routeIs('reportes.*') ? 'true' : 'false' }} }" class="space-y-1 pt-2">
+                        <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Análisis</p>
+
+                        <button @click="open = !open"
+                                class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors">
+                            <span class="flex items-center">
+                                <svg class="w-5 h-5 mr-3 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                </svg>
+                                Reportes
+                            </span>
+                            <svg :class="open ? 'rotate-90' : ''" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+
+                        <div x-show="open" x-cloak x-transition class="pl-8 space-y-1">
+                            <a href="{{ route('reportes.financiero') }}"
+                               class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('reportes.financiero') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Financiero
+                            </a>
+                            <a href="{{ route('reportes.productividad') }}"
+                               class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('reportes.productividad') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                                Productividad
                             </a>
                         </div>
                     </div>

@@ -109,6 +109,7 @@ new class extends Component
                         <th class="px-4 py-3">Licencia</th>
                         <th class="px-4 py-3">Especialidades</th>
                         <th class="px-4 py-3">Usuario</th>
+                        <th class="px-4 py-3">Firma</th>
                         <th class="px-4 py-3 text-center">Estado</th>
                         <th class="px-4 py-3 text-right">Acciones</th>
                     </tr>
@@ -158,6 +159,11 @@ new class extends Component
                                     </div>
                                 @else
                                     <span class="text-xs text-red-500 italic">Sin usuario</span>
+                                @endif
+                            </td>
+                            <td>
+                                @if ($medico->firma_url)
+                                    <img src="{{ $medico->firma_url }}" alt="Firma" class="h-10 max-w-[100px] object-contain mx-auto">
                                 @endif
                             </td>
                             <td class="px-4 py-3 text-center">

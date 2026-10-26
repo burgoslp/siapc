@@ -177,6 +177,15 @@
 
     <!-- Firma -->
     <div class="firma-container">
+        {{-- Imagen de la firma si existe --}}
+        @if($consulta->medico->firma_path && Storage::disk('public')->exists($consulta->medico->firma_path))
+            <div style="text-align: center; margin-bottom: 5px;">
+                <img src="{{ Storage::disk('public')->path($consulta->medico->firma_path) }}" 
+                     style="max-height: 60px; max-width: 200px;" 
+                     alt="Firma del Médico">
+            </div>
+        @endif
+        
         <div class="firma-linea"></div>
         <div class="firma-texto">
             <strong>Dr(a). {{ $consulta->medico->nombre }} {{ $consulta->medico->apellido }}</strong><br>
