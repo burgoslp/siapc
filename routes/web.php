@@ -49,6 +49,11 @@ Route::middleware(['auth'])->group(function () {
     //gastos
     Route::get('/gastos', [GastoController::class, 'index'])->name('gastos.index');
 
+    Route::prefix('reportes')->name('reportes.')->group(function () {
+        Route::get('/financiero', [ReporteController::class, 'financiero'])->name('financiero');
+        Route::get('/productividad', [ReporteController::class, 'productividad'])->name('productividad');
+    });
+
 
 });
 
@@ -69,15 +74,13 @@ Route::middleware(['auth', 'role:admin'])->prefix('parametros')->group(function 
     Route::get('empresa', [EmpresaController::class, 'index'])->name('empresa.index');
 
     Route::prefix('tesoreria')->group(function () {
-        Route::get('cuentas', [CuentaController::class, 'index'])->name('tesoreria.cuentas.index');
-        Route::get('movimientos', [MovimientoEntreCuentaController::class, 'index'])->name('tesoreria.movimientos.index');
+    Route::get('cuentas', [CuentaController::class, 'index'])->name('tesoreria.cuentas.index');
+    Route::get('movimientos/internos', [MovimientoEntreCuentaController::class, 'index'])->name('tesoreria.movimientos.index');
+    Route::get('movimientos/cuenta', [CuentaController::class, 'extracto'])->name('tesoreria.movimientos.extracto');
 
-    });
+});
 
-    Route::prefix('reportes')->name('reportes.')->group(function () {
-        Route::get('/financiero', [ReporteController::class, 'financiero'])->name('financiero');
-        Route::get('/productividad', [ReporteController::class, 'productividad'])->name('productividad');
-    });
+   
 
 });
 

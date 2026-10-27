@@ -1,7 +1,7 @@
 @extends('layouts.base')
-
+@section('title', config('app.name', 'SIAPC') . ' - Movimientos entre cuentas')
 @section('contenido')
-<div class="container mx-auto px-4 py-6 space-y-6">
+<div class="container mx-auto px-4 py-6">
 
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

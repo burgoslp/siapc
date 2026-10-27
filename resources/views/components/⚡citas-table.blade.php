@@ -212,6 +212,7 @@ new class extends Component
             <table class="w-full text-left">
                 <thead>
                     <tr class="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-semibold">
+                        <th class="px-4 py-3">Nro. Cita</th>
                         <th class="px-4 py-3">Fecha / Hora</th>
                         <th class="px-4 py-3">Paciente</th>
                         <th class="px-4 py-3">Médico</th>
@@ -224,6 +225,9 @@ new class extends Component
                 <tbody class="divide-y divide-gray-100 text-sm">
                     @forelse ($citas as $cita)
                         <tr wire:key="cita-{{ $cita->id }}" class="hover:bg-gray-50 transition">
+                            <td class="px-4 py-3 font-mono text-xs font-semibold text-teal-700">
+                                {{ $cita->numero_cita ?? 'N/A' }}
+                            </td>
                             <td class="px-4 py-3 whitespace-nowrap">
                                 <div class="font-medium text-gray-800">
                                     {{ $cita->fecha->format('d/m/Y') }}

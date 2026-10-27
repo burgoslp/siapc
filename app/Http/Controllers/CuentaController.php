@@ -8,4 +8,9 @@ class CuentaController extends Controller
     {
         return view('tesoreria.cuentas.index');
     }
+
+    public function extracto()
+    {
+        return view('tesoreria.movimientos.extracto');
+    }
 }

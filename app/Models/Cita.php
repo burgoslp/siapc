@@ -59,6 +59,28 @@ class Cita extends Model
         return $this->hasMany(Pago::class, 'cita_id');
     }
 
+
+    protected static function booted()
+    {
+        static::creating(function ($cita) {
+            // Si la cita no tiene un numero asignado, lo generamos
+            if (empty($cita->numero_cita)) {
+                $ultimaCita = static::orderByDesc('id')->first();
+                
+                // Si no hay citas previas, empezamos en 1
+                $siguienteNumero = 1;
+                
+                if ($ultimaCita && $ultimaCita->numero_cita) {
+                    // Extraemos el número del formato CIT-0001
+                    $siguienteNumero = (int) str_replace('CIT-', '', $ultimaCita->numero_cita) + 1;
+                }
+
+                // Formateamos con ceros a la izquierda (Ej: CIT-0001)
+                $cita->numero_cita = 'CIT-' . str_pad($siguienteNumero, 4, '0', STR_PAD_LEFT);
+            }
+        });
+    }
+
     // ============================================================
     // SCOPES
     // ============================================================

@@ -11,6 +11,7 @@ new class extends Component
     public ?int $citaId = null;
     public bool $abierto = false;
 
+    public $numero_cita = null;
     public $paciente_id = '';
     public $medico_id = '';
     public $fecha = '';
@@ -32,6 +33,7 @@ new class extends Component
     public function abrirNueva(): void
     {
         $this->reset();
+        $this->numero_cita = null;
         $this->estado = 'PENDIENTE';
         $this->fecha = now()->format('Y-m-d');
         $this->hora = now()->addHour()->format('H:i');
@@ -74,6 +76,7 @@ new class extends Component
         if (!$cita) return;
 
         $this->citaId = $cita->id;
+        $this->numero_cita = $cita->numero_cita;
         $this->paciente_id = $cita->paciente_id;
         $this->medico_id = $cita->medico_id;
         $this->fecha = $cita->fecha->format('Y-m-d');
@@ -301,7 +304,7 @@ new class extends Component
                 {{-- Encabezado --}}
                 <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                     <h3 class="text-lg font-bold text-gray-800">
-                        {{ $citaId ? 'Editar Cita' : 'Nueva Cita' }}
+                        {{ $citaId ? 'Editar Cita ' . $numero_cita : 'Nueva Cita' }}
                     </h3>
                     <button type="button" wire:click="cerrar" class="text-gray-400 hover:text-gray-600">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

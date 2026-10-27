@@ -9,13 +9,11 @@ use App\Models\Paciente;
 use App\Models\Medico;
 use App\Models\Tarifa;
 use App\Models\Tasa;
-use App\Models\Cambio;
 use App\Models\Caja;
 use App\Models\Pago;
 use App\Models\Cuenta;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Hash;
 
 class HistorialClinicoSeeder extends Seeder
 {
@@ -31,7 +29,7 @@ class HistorialClinicoSeeder extends Seeder
 
         $pacientes = Paciente::all();
         $medicos = Medico::all();
-        $tarifas = Tarifa::where('tipo', 'CONSULTA')->get(); // Solo consultas para agilizar
+        $tarifas = Tarifa::where('tipo', 'CONSULTA')->get();
         
         $tasaBcv = Tasa::where('nombre', 'bcv')->first();
         $cambioDolar = $tasaBcv->cambioActualDe('dolar');
@@ -46,17 +44,39 @@ class HistorialClinicoSeeder extends Seeder
         // Iterar por los últimos 30 días
         for ($i = 29; $i >= 0; $i--) {
             $fecha = Carbon::now()->subDays($i);
-            
-            // Simular entre 2 y 5 citas por día
             $cantidadCitas = rand(2, 5);
+
+            // 1. Crear la Caja del día (ABIERTA al principio)
+            $caja = Caja::create([
+                'codigo' => 'CAJA-' . $fecha->format('Y-m-d') . '-001',
+                'abierta_por' => $admin->id,
+                'abierta_en' => $fecha->copy()->setHour(8)->setMinute(0),
+                'monto_inicial' => 0,
+                'moneda_inicial' => 'bs',
+                'estado' => 'ABIERTA',
+            ]);
+
+            $totalEfectivoBs = 0;
+            $totalEfectivoUsd = 0;
+            $totalTransferencia = 0;
+            $totalPagoMovil = 0;
+            $totalZelle = 0;
 
             for ($j = 0; $j < $cantidadCitas; $j++) {
                 $paciente = $pacientes->random();
                 $medico = $medicos->random();
                 $tarifa = $tarifas->random();
 
-                // 1. Crear la cita (completada y pagada)
+                // Generar el numero_cita manualmente para el seeder
+                $ultimaCita = Cita::orderByDesc('id')->first();
+                $siguienteNumero = $ultimaCita && $ultimaCita->numero_cita 
+                    ? ((int) str_replace('CIT-', '', $ultimaCita->numero_cita)) + 1 
+                    : 1;
+                $numeroCita = 'CIT-' . str_pad($siguienteNumero, 4, '0', STR_PAD_LEFT);
+
+                // 2. Crear la cita
                 $cita = Cita::create([
+                    'numero_cita' => $numeroCita,
                     'paciente_id' => $paciente->id,
                     'medico_id' => $medico->id,
                     'fecha' => $fecha->copy()->setHour(rand(8, 16))->setMinute(0),
@@ -75,7 +95,7 @@ class HistorialClinicoSeeder extends Seeder
                     'updated_at' => $fecha->copy()->setHour(rand(8, 16)),
                 ]);
 
-                // 2. Crear la consulta
+                // 3. Crear la consulta
                 Consulta::create([
                     'cita_id' => $cita->id,
                     'paciente_id' => $paciente->id,
@@ -88,26 +108,10 @@ class HistorialClinicoSeeder extends Seeder
                     'updated_at' => $cita->created_at,
                 ]);
 
-                // 3. Crear la Caja del día (si no existe para esa fecha)
-                $caja = Caja::whereDate('abierta_en', $fecha->format('Y-m-d'))->first();
-                if (!$caja) {
-                    $caja = Caja::create([
-                        'codigo' => 'CAJA-' . $fecha->format('Y-m-d') . '-001',
-                        'abierta_por' => $admin->id,
-                        'abierta_en' => $fecha->copy()->setHour(8)->setMinute(0),
-                        'monto_inicial' => 0,
-                        'moneda_inicial' => 'bs',
-                        'estado' => 'CERRADA',
-                        'cerrada_por' => $admin->id,
-                        'cerrada_en' => $fecha->copy()->setHour(18)->setMinute(0),
-                    ]);
-                }
-
-                // 4. Simular el Pago (aleatoriamente en Bs o USD)
+                // 4. Crear el Pago
                 $esDolar = rand(0, 1) === 1;
                 $formaPago = $esDolar ? ['ZELLE', 'EFECTIVO'][rand(0, 1)] : ['EFECTIVO', 'TRANSFERENCIA', 'PAGO_MOVIL'][rand(0, 2)];
                 
-                // Asignar cuenta según forma de pago
                 $cuentaId = null;
                 if ($formaPago === 'ZELLE') $cuentaId = $cuentaZelle->id;
                 elseif ($formaPago === 'EFECTIVO' && $esDolar) $cuentaId = $cuentaCajaUsd->id;
@@ -135,32 +139,51 @@ class HistorialClinicoSeeder extends Seeder
                     'updated_at' => $cita->created_at,
                 ]);
 
-                // 5. Registrar el movimiento en tesorería
-                if ($cuentaId) {
-                    $cuenta = Cuenta::find($cuentaId);
-                    $montoEnMonedaCuenta = $pago->monto;
-                    if ($cuenta->moneda !== $pago->moneda) {
-                        if ($cuenta->moneda === 'bs' && $pago->moneda === 'dolar') {
-                            $montoEnMonedaCuenta = $pago->monto * $pago->tasa_momento;
-                        }
-                    }
+                // Acumular totales para el cierre
+                if ($formaPago === 'ZELLE') $totalZelle += $pago->monto_bs;
+                elseif ($formaPago === 'EFECTIVO' && $esDolar) $totalEfectivoUsd += $pago->monto_bs;
+                elseif ($formaPago === 'EFECTIVO' && !$esDolar) $totalEfectivoBs += $pago->monto_bs;
+                elseif ($formaPago === 'TRANSFERENCIA') $totalTransferencia += $pago->monto_bs;
+                elseif ($formaPago === 'PAGO_MOVIL') $totalPagoMovil += $pago->monto_bs;
+            }
 
-                    $cuenta->movimientos()->create([
-                        'tipo' => 'INGRESO',
-                        'origen_tipo' => 'PAGO',
-                        'origen_id' => $pago->id,
-                        'monto' => $montoEnMonedaCuenta,
-                        'saldo_despues' => $cuenta->saldo_actual + $montoEnMonedaCuenta,
-                        'fecha' => $cita->created_at,
-                        'descripcion' => "Pago Cita #{$cita->id}",
-                        'created_at' => $cita->created_at,
-                        'updated_at' => $cita->created_at,
-                    ]);
+            // 5. CERRAR LA CAJA (Aquí se calculan los totales)
+            $caja->update([
+                'cerrada_por' => $admin->id,
+                'cerrada_en' => $fecha->copy()->setHour(18)->setMinute(0),
+                'total_efectivo' => $totalEfectivoBs + $totalEfectivoUsd,
+                'total_transferencia' => $totalTransferencia,
+                'total_pago_movil' => $totalPagoMovil,
+                'total_zelle' => $totalZelle,
+                'total_general' => $totalEfectivoBs + $totalEfectivoUsd + $totalTransferencia + $totalPagoMovil + $totalZelle,
+                'estado' => 'CERRADA',
+            ]);
+
+            // 6. LIQUIDAR A TESORERÍA (Un movimiento por cada pago de la caja)
+            $pagosDeLaCaja = Pago::where('caja_id', $caja->id)->where('estado', 'ACTIVO')->get();
+            
+            foreach ($pagosDeLaCaja as $pago) {
+                $cuenta = Cuenta::find($pago->cuenta_id);
+                if (!$cuenta) continue;
+
+                $montoEnMonedaCuenta = (float) $pago->monto;
+                if ($cuenta->moneda !== $pago->moneda) {
+                    if ($cuenta->moneda === 'bs' && in_array($pago->moneda, ['dolar', 'euro'])) {
+                        $montoEnMonedaCuenta = (float) $pago->monto * (float) $pago->tasa_momento;
+                    }
                 }
 
-                // 6. Actualizar totales de la caja
-                $caja->increment('total_' . strtolower($formaPago), $pago->monto_bs);
-                $caja->increment('total_general', $pago->monto_bs);
+                $cuenta->movimientos()->create([
+                    'tipo' => 'INGRESO',
+                    'origen_tipo' => 'PAGO',
+                    'origen_id' => $pago->id,
+                    'monto' => $montoEnMonedaCuenta,
+                    'saldo_despues' => $cuenta->saldo_actual + $montoEnMonedaCuenta, 
+                    'fecha' => $caja->cerrada_en,
+                    'descripcion' => "Pago {$pago->cita->numero_cita}",
+                    'created_at' => $caja->cerrada_en,
+                    'updated_at' => $caja->cerrada_en,
+                ]);
             }
         }
 

@@ -36,14 +36,12 @@ new class extends Component
                 return;
             }
 
-            // Verificar de nuevo que sigue abierta
             $caja = Caja::find($this->caja->id);
             if (!$caja || $caja->estado !== 'ABIERTA') {
                 session()->flash('error', 'La caja ya no está abierta.');
                 return;
             }
 
-            // Calcular totales desde los pagos
             $totales = $caja->totalesPorFormaPago();
             $totalGeneral = array_sum($totales);
 
@@ -66,45 +64,49 @@ new class extends Component
                     'estado' => 'CERRADA',
                 ]);
 
-                // 2. Liquidar a Tesorería
-                // Agrupamos los pagos activos por cuenta_id para hacer un solo movimiento por cuenta
-                $pagosAgrupados = $caja->pagos()
+                // 2. Liquidar a Tesorería (Detallado pago por pago)
+                $pagosActivos = $caja->pagos()
+                    ->with('cita', 'paciente')
                     ->where('estado', 'ACTIVO')
                     ->whereNotNull('cuenta_id')
-                    ->get()
-                    ->groupBy('cuenta_id');
+                    ->get();
 
-                foreach ($pagosAgrupados as $cuentaId => $pagosDeEstaCuenta) {
+                // Mantenemos un registro de los saldos actuales de cada cuenta para no consultar la BD en cada iteración
+                $saldosActuales = [];
+
+                foreach ($pagosActivos as $pago) {
+                    $cuentaId = $pago->cuenta_id;
+                    
+                    // Si no hemos consultado el saldo de esta cuenta, lo obtenemos
+                    if (!isset($saldosActuales[$cuentaId])) {
+                        $cuenta = \App\Models\Cuenta::find($cuentaId);
+                        if (!$cuenta) continue;
+                        $saldosActuales[$cuentaId] = $cuenta->saldo_actual;
+                    }
+
+                    // Como garantizamos que el pago y la cuenta son de la misma moneda, el monto es directo
+                    $monto = (float) $pago->monto;
+
+                    // Actualizamos el saldo acumulado para esta cuenta
+                    $saldosActuales[$cuentaId] += $monto;
+
                     $cuenta = \App\Models\Cuenta::find($cuentaId);
                     if (!$cuenta) continue;
 
-                    $montoTotalEnCuenta = 0;
+                    $numeroCita = $pago->cita?->numero_cita ?? 'S/N';
+                    $nombrePaciente = $pago->paciente 
+                        ? $pago->paciente->nombre . ' ' . $pago->paciente->apellido 
+                        : 'Paciente Desconocido';
 
-                    // Sumamos los montos convirtiendo a la moneda de la cuenta
-                    foreach ($pagosDeEstaCuenta as $pago) {
-                        $monto = (float) $pago->monto;
-                        if ($cuenta->moneda !== $pago->moneda) {
-                            if ($cuenta->moneda === 'bs' && in_array($pago->moneda, ['dolar', 'euro'])) {
-                                $monto = (float) $pago->monto * (float) $pago->tasa_momento;
-                            }
-                        }
-                        $montoTotalEnCuenta += $monto;
-                    }
-
-                    // Solo creamos el movimiento si el monto es mayor a 0
-                    if ($montoTotalEnCuenta > 0) {
-                        $nuevoSaldo = $cuenta->saldo_actual + $montoTotalEnCuenta;
-
-                        $cuenta->movimientos()->create([
-                            'tipo' => 'INGRESO',
-                            'origen_tipo' => 'PAGO', // Origen: cierre de caja
-                            'origen_id' => $caja->id, // Usamos el ID de la caja como referencia
-                            'monto' => $montoTotalEnCuenta,
-                            'saldo_despues' => $nuevoSaldo,
-                            'fecha' => now(),
-                            'descripcion' => "Liquidación Cierre de Caja {$caja->codigo}",
-                        ]);
-                    }
+                    $cuenta->movimientos()->create([
+                        'tipo' => 'INGRESO',
+                        'origen_tipo' => 'PAGO',
+                        'origen_id' => $pago->id,
+                        'monto' => $monto,
+                        'saldo_despues' => $saldosActuales[$cuentaId],
+                        'fecha' => now(),
+                        'descripcion' => "Pago {$numeroCita} - {$nombrePaciente}",
+                    ]);
                 }
             });
 

@@ -5,6 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\Cita;
 use App\Models\Consulta;
 use App\Models\Paciente;
+use App\Models\Pago;
+use App\Models\Gasto;
+use App\Models\Caja;
+use App\Models\Medico;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
@@ -13,69 +18,119 @@ class DashboardController extends Controller
     {
         $user = auth()->user();
         $esMedicoPuro = $user->esMedico() && !$user->puedeVerTodo();
+        $hoy = Carbon::today();
+        $inicioMes = Carbon::now()->startOfMonth();
 
         // ============================
-        // KPIs
+        // 1. KPIs PRINCIPALES
         // ============================
-
+        
         // Citas de hoy
-        $queryCitasHoy = Cita::hoy();
-        if ($esMedicoPuro) {
-            $queryCitasHoy->where('medico_id', $user->medico->id);
-        }
+        $queryCitasHoy = Cita::whereDate('fecha', $hoy);
+        if ($esMedicoPuro) $queryCitasHoy->where('medico_id', $user->medico->id);
         $citasHoy = $queryCitasHoy->count();
 
-        // Pacientes activos
-        $pacientesActivos = Paciente::where('estado', 'activo')->count();
+       // Ingresos Hoy (en Bs)
+        $queryPagosHoy = Pago::where('estado', 'ACTIVO')->whereDate('created_at', $hoy);
+        if ($esMedicoPuro) $queryPagosHoy->whereHas('cita', fn($q) => $q->where('medico_id', $user->medico->id));
+        $ingresosHoy = $queryPagosHoy->sum(DB::raw("
+            CASE 
+                WHEN moneda = 'bs' THEN monto 
+                ELSE monto * COALESCE(tasa_momento, 1) 
+            END
+        "));
 
-        // Consultas pendientes de atender (citas CONFIRMADAS sin consulta)
-        $queryPendientes = Cita::where('estado', 'CONFIRMADA')
-            ->whereDoesntHave('consulta');
-        if ($esMedicoPuro) {
-            $queryPendientes->where('medico_id', $user->medico->id);
+        // Ingresos Mes (en Bs)
+        $queryPagosMes = Pago::where('estado', 'ACTIVO')->whereBetween('created_at', [$inicioMes, now()]);
+        if ($esMedicoPuro) $queryPagosMes->whereHas('cita', fn($q) => $q->where('medico_id', $user->medico->id));
+        $ingresosMes = $queryPagosMes->sum(DB::raw("
+            CASE 
+                WHEN moneda = 'bs' THEN monto 
+                ELSE monto * COALESCE(tasa_momento, 1) 
+            END
+        "));
+
+        // Gastos del Mes (Solo visible para admin)
+        $gastosMes = 0;
+        if (!$esMedicoPuro) {
+            $gastosMes = Gasto::whereBetween('fecha_gasto', [$inicioMes, now()])
+                ->sum(DB::raw("
+                    CASE 
+                        WHEN moneda = 'bs' THEN monto 
+                        ELSE monto * COALESCE(tasa_cambio, 1) 
+                    END
+                "));
         }
+
+        // Consultas pendientes
+        $queryPendientes = Cita::where('estado', 'CONFIRMADA')->whereDoesntHave('consulta');
+        if ($esMedicoPuro) $queryPendientes->where('medico_id', $user->medico->id);
         $consultasPendientes = $queryPendientes->count();
 
-        // Ingresos del mes (citas pagadas)
-        $queryIngresos = Cita::where('estado_pago', 'PAGADA')
-            ->whereMonth('fecha', now()->month)
-            ->whereYear('fecha', now()->year);
-        if ($esMedicoPuro) {
-            $queryIngresos->where('medico_id', $user->medico->id);
+        // ============================
+        // 2. ALERTAS OPERATIVAS
+        // ============================
+        $alertas = [];
+        if (!$esMedicoPuro) {
+            $cajaVencida = Caja::abierta();
+            if ($cajaVencida && $cajaVencida->estaVencida()) {
+                $alertas[] = ['tipo' => 'error', 'mensaje' => 'Hay una caja del día anterior sin cerrar.', 'ruta' => route('facturacion.index')];
+            }
         }
-        $ingresosMes = $queryIngresos->sum('total');
 
         // ============================
-        // Próximas citas de hoy
+        // 3. PRÓXIMAS CITAS (Hoy y Mañana)
         // ============================
         $queryProximas = Cita::with(['paciente', 'medico.especialidades'])
-            ->hoy()
+            ->where('fecha', '>=', now())
             ->whereIn('estado', ['PENDIENTE', 'CONFIRMADA'])
             ->orderBy('fecha', 'asc')
-            ->limit(10);
-        if ($esMedicoPuro) {
-            $queryProximas->where('medico_id', $user->medico->id);
-        }
+            ->limit(6);
+        if ($esMedicoPuro) $queryProximas->where('medico_id', $user->medico->id);
         $proximasCitas = $queryProximas->get();
 
         // ============================
-        // Últimas consultas registradas
+        // 4. RENDIMIENTO (Solo Admin)
         // ============================
-        $queryUltimasConsultas = Consulta::with(['paciente', 'medico'])
-            ->orderByDesc('created_at')
-            ->limit(5);
-        if ($esMedicoPuro) {
-            $queryUltimasConsultas->where('medico_id', $user->medico->id);
+        $topMedicos = [];
+        if (!$esMedicoPuro) {
+            $topMedicos = Medico::withCount(['citas' => function($q) use ($inicioMes) {
+                $q->where('estado', 'COMPLETADA')->where('fecha', '>=', $inicioMes);
+            }])->orderByDesc('citas_count')->limit(3)->get();
         }
-        $ultimasConsultas = $queryUltimasConsultas->get();
+
+        // ============================
+        // 5. GRÁFICO (Últimos 7 días)
+        // ============================
+        $chartLabels = [];
+        $chartData = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $fecha = now()->subDays($i);
+            $chartLabels[] = $fecha->format('d/m');
+            
+            $queryChart = Pago::where('estado', 'ACTIVO')->whereDate('created_at', $fecha);
+            if ($esMedicoPuro) $queryChart->whereHas('cita', fn($q) => $q->where('medico_id', $user->medico->id));
+            
+            $chartData[] = round($queryChart->sum(DB::raw("
+                CASE 
+                    WHEN moneda = 'bs' THEN monto 
+                    ELSE monto * COALESCE(tasa_momento, 1) 
+                END
+            ")), 2);
+        }
 
         return view('auth.dashboard', compact(
             'citasHoy',
-            'pacientesActivos',
-            'consultasPendientes',
+            'ingresosHoy',
             'ingresosMes',
+            'gastosMes',
+            'consultasPendientes',
+            'alertas',
             'proximasCitas',
-            'ultimasConsultas',
+            'topMedicos',
+            'chartLabels',
+            'chartData',
+            'esMedicoPuro'
         ));
     }
 }
