@@ -51,13 +51,7 @@ Route::middleware(['auth'])->group(function () {
 
 
 });
-Route::get('/debug-mail', function () {
-    return [
-        'default_mailer' => config('mail.default'),
-        'mailers_smtp' => config('mail.mailers.smtp'),
-        'from_address' => config('mail.from.address'),
-    ];
-});
+
 /*
 |--------------------------------------------------------------------------
 | Rutas de Parámetros (solo admin)
@@ -93,5 +87,6 @@ Route::middleware(['auth', 'role:admin'])->prefix('parametros')->group(function 
 | Rutas de autenticación (Breeze)
 |--------------------------------------------------------------------------
 */
+
 
 require __DIR__.'/auth.php';

@@ -16,16 +16,33 @@ class ProfileUpdateRequest extends FormRequest
      */
     public function rules(): array
     {
-        return [
-            'name' => ['required', 'string', 'max:255'],
+        $user = $this->user();
+        
+        $rules = [
+            'username' => [
+                'required', 
+                'string', 
+                'max:50', 
+                Rule::unique(User::class)->ignore($user->id)
+            ],
             'email' => [
                 'required',
                 'string',
                 'lowercase',
                 'email',
                 'max:255',
-                Rule::unique(User::class)->ignore($this->user()->id),
+                Rule::unique(User::class)->ignore($user->id),
             ],
         ];
+
+        // Si el usuario logueado es un médico, agregamos las reglas extra
+        if ($user->medico) {
+            $rules['nombre'] = ['required', 'string', 'max:255'];
+            $rules['apellido'] = ['required', 'string', 'max:255'];
+            $rules['telefono'] = ['nullable', 'string', 'max:30'];
+            $rules['firmaFile'] = ['nullable', 'image', 'max:2048'];
+        }
+
+        return $rules;
     }
 }

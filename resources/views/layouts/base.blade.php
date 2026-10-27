@@ -399,7 +399,7 @@
                                 @click.outside="open = false"
                                 x-transition
                                 class="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 py-1.5 z-50">
-                                <a href="#" class="block px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
+                                <a href="{{ route('profile.edit') }}" class="block px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50">
                                     Mi Perfil
                                 </a>
                                 <form method="POST" action="{{ route('logout') }}">
