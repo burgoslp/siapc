@@ -47,11 +47,16 @@ new class extends Component
 
         if ($this->search !== '') {
             $term = $this->search;
-            $query->whereHas('paciente', function ($q) use ($term) {
-                $q->where('nombre', 'like', "%{$term}%")
-                  ->orWhere('apellido', 'like', "%{$term}%")
-                  ->orWhere('ci', 'like', "%{$term}%")
-                  ->orWhereRaw("CONCAT(nombre, ' ', apellido) LIKE ?", ["%{$term}%"]);
+            $query->where(function ($q) use ($term) {
+                // 1. Buscar por número de cita (ej: CIT-0001)
+                $q->where('numero_cita', 'like', "%{$term}%")
+                  // 2. O buscar por datos del paciente
+                  ->orWhereHas('paciente', function ($pac) use ($term) {
+                      $pac->where('nombre', 'like', "%{$term}%")
+                          ->orWhere('apellido', 'like', "%{$term}%")
+                          ->orWhere('ci', 'like', "%{$term}%")
+                          ->orWhereRaw("CONCAT(nombre, ' ', apellido) LIKE ?", ["%{$term}%"]);
+                  });
             });
         }
 
@@ -98,7 +103,7 @@ new class extends Component
             <div class="relative flex-1">
                 <input type="text"
                        wire:model.live.debounce.300ms="search"
-                       placeholder="Buscar por cédula, nombre o apellido..."
+                       placeholder="Buscar por cita, cédula, nombre o apellido..."
                        class="w-full pl-9 pr-9 py-2 border border-gray-300 rounded-lg text-sm">
                 <svg class="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2"
                      fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -125,10 +130,12 @@ new class extends Component
             @endif
         </div>
 
-        {{-- Loading --}}
-        <div wire:loading.delay.200ms wire:target="search, medicoId" class="text-xs text-teal-600 font-medium mt-2">
-            Buscando...
-        </div>
+        {{-- Loading condicional: solo si hay texto o filtro y está cargando --}}
+        @if ($search !== '' || $medicoId !== '')
+            <div wire:loading.delay.200ms wire:target="search, medicoId" class="text-xs text-teal-600 font-medium mt-2">
+                Buscando...
+            </div>
+        @endif
     </div>
 
     {{-- ============================================================ --}}
@@ -148,6 +155,7 @@ new class extends Component
                 <table class="w-full text-left">
                     <thead>
                         <tr class="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-semibold">
+                            <th class="px-4 py-3">Nro. Cita</th>
                             <th class="px-4 py-3">Fecha</th>
                             <th class="px-4 py-3">Paciente</th>
                             <th class="px-4 py-3">Médico</th>
@@ -161,6 +169,9 @@ new class extends Component
                     <tbody class="divide-y divide-gray-100 text-sm">
                         @foreach ($citasPorCobrar as $cita)
                             <tr wire:key="cita-{{ $cita->id }}" class="hover:bg-gray-50 transition">
+                                <td class="px-4 py-3 font-mono text-xs font-semibold text-teal-700 whitespace-nowrap">
+                                    {{ $cita->numero_cita ?? 'N/A' }}
+                                </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     <div class="font-medium text-gray-800">
                                         {{ $cita->fecha->format('d/m/Y') }}

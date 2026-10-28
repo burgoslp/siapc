@@ -47,7 +47,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('facturacion/cajas/{caja}', [FacturacionController::class, 'cajaDetalle'])->name('facturacion.cajas.detalle');
 
     //gastos
-    Route::get('/gastos', [GastoController::class, 'index'])->name('gastos.index');
+    Route::get('/gastos/variables', [GastoController::class, 'variables'])->name('gastos.variables.index');
+    Route::get('/gastos/fijos', [GastoController::class, 'fijos'])->name('gastos.fijos.index');
 
     Route::prefix('reportes')->name('reportes.')->group(function () {
         Route::get('/financiero', [ReporteController::class, 'financiero'])->name('financiero');

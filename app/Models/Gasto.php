@@ -28,4 +28,15 @@ class Gasto extends Model
     {
         return $this->belongsTo(User::class, 'registrado_por');
     }
+
+    public function recurrencia(): BelongsTo
+    {
+        return $this->belongsTo(Recurrencia::class, 'recurrencia_id');
+    }
+    
+    //Un accesor para saber si es fijo o variable rápidamente
+    public function getEsFijoAttribute(): bool
+    {
+        return $this->tipo_gasto === 'FIJO';
+    }
 }

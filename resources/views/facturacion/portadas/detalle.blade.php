@@ -1,5 +1,5 @@
 @extends('layouts.base')
-
+@section('title', config('app.name', 'SIAPC') . ' - Detalle de las portadas')
 @section('contenido')
 @php
     $formas = [
@@ -108,7 +108,6 @@
             @php
                 if ($caja->estado === 'CERRADA') {
                     $totales = [
-                        'EFECTIVO'        => $caja->total_efectivo,
                         'TRANSFERENCIA'   => $caja->total_transferencia,
                         'PAGO_MOVIL'      => $caja->total_pago_movil,
                         'TARJETA_DEBITO'  => $caja->total_tarjeta_debito,
@@ -117,21 +116,63 @@
                         'BINANCE'         => $caja->total_binance,
                         'OTRO'            => $caja->total_otros,
                     ];
+
+                    // 👇 Consultamos el desglose del efectivo en la BD
+                    $efectivoUsdDetalle = $caja->pagos()
+                        ->where('estado', 'ACTIVO')
+                        ->where('forma_pago', 'EFECTIVO')
+                        ->where('moneda', 'dolar')
+                        ->sum('monto');
+                        
+                    $efectivoBsDetalle = $caja->pagos()
+                        ->where('estado', 'ACTIVO')
+                        ->where('forma_pago', 'EFECTIVO')
+                        ->where('moneda', 'bs')
+                        ->sum('monto');
+
                 } else {
+                    // Para cajas abiertas usamos la misma lógica en vivo
                     $totales = $caja->totalesPorFormaPago();
+                    
+                    $efectivoUsdDetalle = $caja->pagos()
+                        ->where('estado', 'ACTIVO')
+                        ->where('forma_pago', 'EFECTIVO')
+                        ->where('moneda', 'dolar')
+                        ->sum('monto');
+                        
+                    $efectivoBsDetalle = $caja->pagos()
+                        ->where('estado', 'ACTIVO')
+                        ->where('forma_pago', 'EFECTIVO')
+                        ->where('moneda', 'bs')
+                        ->sum('monto');
                 }
             @endphp
 
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {{-- Efectivo USD --}}
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                    <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Efectivo USD</p>
+                    <p class="text-sm font-bold text-gray-800 mt-1">$ {{ number_format($efectivoUsdDetalle, 2) }}</p>
+                </div>
+
+                {{-- Efectivo Bs --}}
+                <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                    <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">Efectivo Bs</p>
+                    <p class="text-sm font-bold text-gray-800 mt-1">Bs {{ number_format($efectivoBsDetalle, 2) }}</p>
+                </div>
+
+                {{-- Otros métodos de pago --}}
                 @foreach ($formas as $key => $info)
-                    <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
-                        <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
-                            {{ $info['label'] }}
-                        </p>
-                        <p class="text-sm font-bold text-gray-800 mt-1">
-                            Bs {{ number_format($totales[$key] ?? 0, 2) }}
-                        </p>
-                    </div>
+                    @if ($key !== 'EFECTIVO' && ($totales[$key] ?? 0) > 0)
+                        <div class="bg-gray-50 rounded-lg p-3 border border-gray-100">
+                            <p class="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+                                {{ $info['label'] }}
+                            </p>
+                            <p class="text-sm font-bold text-gray-800 mt-1">
+                                Bs {{ number_format($totales[$key] ?? 0, 2) }}
+                            </p>
+                        </div>
+                    @endif
                 @endforeach
             </div>
 
@@ -141,7 +182,11 @@
                         Total General
                     </span>
                     <span class="text-2xl font-bold text-teal-700">
-                        Bs {{ number_format(array_sum($totales), 2) }}
+                        @if ($caja->estado === 'CERRADA')
+                            Bs {{ number_format($caja->total_general, 2) }}
+                        @else
+                            Bs {{ number_format($caja->totalGeneralBs(), 2) }}
+                        @endif
                     </span>
                 </div>
             </div>
@@ -208,7 +253,7 @@
                                 <td class="px-4 py-3 text-xs">
                                     @if ($pago->cita)
                                         <div class="font-mono font-semibold text-teal-700">
-                                            #{{ $pago->cita->id }}
+                                            #{{ $pago->cita->numero_cita }}
                                         </div>
                                         <div class="text-gray-500">
                                             {{ $pago->cita->fecha->format('d/m/Y') }}
@@ -274,6 +319,7 @@
             </div>
         @endif
     </div>
+    
 
 </div>
 @endsection

@@ -4,8 +4,13 @@ namespace App\Http\Controllers;
 
 class GastoController extends Controller
 {
-    public function index()
+    public function variables()
     {
-        return view('gastos.index');
+        return view('gastos.variables.index');
+    }
+
+    public function fijos()
+    {
+        return view('gastos.fijos.index');
     }
 }

@@ -64,13 +64,13 @@ class FacturacionController extends Controller
 
     public function cajas()
     {
-        return view('facturacion.cajas.index');
+        return view('facturacion.portadas.index');
     }
 
     public function cajaDetalle(Caja $caja)
     {
         $caja->load(['abiertaPor', 'cerradaPor', 'pagos.paciente', 'pagos.tasa']);
 
-        return view('facturacion.cajas.detalle', compact('caja'));
+        return view('facturacion.portadas.detalle', compact('caja'));
     }
 }

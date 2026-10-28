@@ -19,6 +19,22 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         [x-cloak] { display: none !important; }
+
+
+        /* Scrollbar sutil para el menú lateral */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155; /* slate-700 */
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #475569; /* slate-600 */
+        }
     </style>
     @vite([
     'resources/css/app.css',
@@ -27,9 +43,9 @@
     @livewireStyles
     @stack('styles')
 </head>
-<body class="h-full antialiased text-slate-800 bg-slate-50" x-data="{ sidebarOpen: false }">
-
-    <div class="min-h-screen flex flex-col md:flex-row">
+<body class="h-full antialiased text-slate-800 bg-slate-50 overflow-hidden" x-data="{ sidebarOpen: false }">
+    {{-- Contenedor principal de altura fija --}}
+    <div class="h-screen flex overflow-hidden">
 
         {{-- Mobile Sidebar Backdrop --}}
         <div x-show="sidebarOpen"
@@ -45,7 +61,7 @@
 
         {{-- Sidebar Navigation --}}
         <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
-               class="fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:inset-auto md:flex md:flex-col shrink-0 shadow-2xl">
+               class="fixed inset-y-0 left-0 z-50 w-64 h-full bg-slate-900 text-slate-300 transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:inset-auto md:flex md:flex-col shrink-0 shadow-2xl">
 
             {{-- Logo & Brand --}}
             <div class="flex items-center justify-between h-16 px-6 bg-slate-950/50 border-b border-slate-800">
@@ -68,7 +84,7 @@
             </div>
 
             {{-- Navigation Links --}}
-            <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+            <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto custom-scrollbar min-h-0">
                 {{-- Dashboard --}}
                 <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Inicio</p>
 
@@ -154,18 +170,37 @@
                     </div>
                 </div>
                 {{-- ============================================================ --}}
-                {{-- MÓDULO: GASTOS --}}
+                {{-- MÓDULO: GASTOS Y SERVICIOS --}}
                 {{-- ============================================================ --}}
-                <div class="pt-2">
+                <div x-data="{ open: {{ request()->routeIs('gastos.*') ? 'true' : 'false' }} }" class="space-y-1 pt-2">
                     <p class="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">Gastos y Servicios</p>
-                    
-                    <a href="{{ route('gastos.index') }}"
-                       class="flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all {{ request()->routeIs('gastos.*') ? 'text-white bg-teal-600 shadow-md shadow-teal-600/20' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60' }}">
-                        <svg class="w-5 h-5 mr-3 {{ request()->routeIs('gastos.*') ? 'text-teal-100' : 'text-slate-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
+
+                    <button @click="open = !open"
+                            class="w-full flex items-center justify-between px-3 py-2 text-sm font-medium rounded-xl text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors">
+                        <span class="flex items-center">
+                            <svg class="w-5 h-5 mr-3 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"/>
+                            </svg>
+                            Gastos
+                        </span>
+                        <svg :class="open ? 'rotate-90' : ''" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
                         </svg>
-                        Gastos
-                    </a>
+                    </button>
+
+                    <div x-show="open" x-cloak x-transition class="pl-8 space-y-1">
+                        {{-- Enlace a Gastos Variables--}}
+                        <a href="{{ route('gastos.variables.index') }}"
+                           class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('gastos.index') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                            Variables
+                        </a>
+
+                        {{-- Enlace a Gastos Fijos--}}
+                        <a href="{{ route('gastos.fijos.index') }}"
+                           class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('gastos.fijos.*') ? 'text-teal-400 bg-slate-800/40' : 'text-slate-400 hover:text-teal-400 hover:bg-slate-800/40' }}">
+                            Fijos
+                        </a>
+                    </div>
                 </div>
 
                 {{-- TESORERÍA --}}
@@ -305,10 +340,10 @@
         </aside>
 
         {{-- Main Content Area --}}
-        <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <div class="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
 
             {{-- Header Horizontal --}}
-            <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+            <header class="bg-white border-b border-slate-200 shrink-0 shadow-sm">
                 <div class="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
 
                     {{-- Search & Toggle Mobile --}}

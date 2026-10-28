@@ -61,10 +61,17 @@ new class extends Component
 
         if ($this->search !== '') {
             $term = $this->search;
-            $query->whereHas('paciente', function ($q) use ($term) {
-                $q->where('nombre', 'like', "%{$term}%")
-                  ->orWhere('apellido', 'like', "%{$term}%")
-                  ->orWhere('ci', 'like', "%{$term}%");
+            $query->where(function ($q) use ($term) {
+                $q->whereHas('cita', function ($citaQuery) use ($term) {
+                    $citaQuery->where('numero_cita', 'like', "%{$term}%");
+                })
+                // 2. O buscar por datos del paciente (como ya lo tenías)
+                ->orWhereHas('paciente', function ($pac) use ($term) {
+                    $pac->where('nombre', 'like', "%{$term}%")
+                        ->orWhere('apellido', 'like', "%{$term}%")
+                        ->orWhere('ci', 'like', "%{$term}%")
+                        ->orWhereRaw("CONCAT(nombre, ' ', apellido) LIKE ?", ["%{$term}%"]);
+                });
             });
         }
 
@@ -96,7 +103,7 @@ new class extends Component
         <div class="relative">
             <input type="text"
                    wire:model.live.debounce.400ms="search"
-                   placeholder="Buscar por paciente..."
+                   placeholder="Buscar por cita, paciente, cedula..."
                    class="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm">
             <svg class="w-4 h-4 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -182,7 +189,7 @@ new class extends Component
                             <td class="px-3 py-3 text-xs">
                                 @if ($pago->cita)
                                     <div class="font-mono font-semibold text-teal-700">
-                                        #{{ $pago->cita->id }}
+                                        #{{ $pago->cita->numero_cita }}
                                     </div>
                                     <div class="text-gray-500 mt-0.5">
                                         {{ $pago->cita->fecha->format('d/m/Y') }}
