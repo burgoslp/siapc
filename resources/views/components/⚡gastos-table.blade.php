@@ -210,7 +210,8 @@ new class extends Component
 
     public function with(): array
     {
-        $query = Gasto::with(['cuenta', 'registrador']);
+        $query = Gasto::with(['cuenta', 'registrador'])
+            ->whereNull('recurrencia_id');
 
         if ($this->search) {
             $query->where(function ($q) {

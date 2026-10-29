@@ -51,33 +51,31 @@ new class extends Component
             $ingresosDia = 0;
             foreach ($pagos as $p) {
                 if ($p->created_at->format('Y-m-d') === $dia) {
-                    // Si es Bs, usamos el monto. Si es USD, multiplicamos por la tasa del pago.
-                    $ingresosDia += $p->moneda === 'bs' 
-                        ? (float) $p->monto 
-                        : (float) $p->monto * (float) $p->tasa_momento;
+                    // Regla de conversión para PAGOS en la gráfica
+                    $tasa = (float) ($p->tasa_momento ?: 1);
+                    if ($this->moneda_visual === 'bs') {
+                        $ingresosDia += $p->moneda === 'bs' ? (float) $p->monto : (float) $p->monto * $tasa;
+                    } else {
+                        $ingresosDia += $p->moneda === 'dolar' ? (float) $p->monto : (float) $p->monto / $tasa;
+                    }
                 }
             }
 
             $egresosDia = 0;
             foreach ($gastos as $g) {
                 if ($g->fecha_gasto->format('Y-m-d') === $dia) {
-                    // Si es Bs, usamos el monto. Si es USD, multiplicamos por la tasa del gasto.
-                    $egresosDia += $g->moneda === 'bs' 
-                        ? (float) $g->monto 
-                        : (float) $g->monto * (float) ($g->tasa_cambio ?: 1);
+                    // Regla de conversión para GASTOS en la gráfica
+                    $tasa = (float) ($g->tasa_cambio ?: 1);
+                    if ($this->moneda_visual === 'bs') {
+                        $egresosDia += $g->moneda === 'bs' ? (float) $g->monto : (float) $g->monto * $tasa;
+                    } else {
+                        $egresosDia += $g->moneda === 'dolar' ? (float) $g->monto : (float) $g->monto / $tasa;
+                    }
                 }
             }
-            // Convertir a la moneda visual usando la tasa original de cada transacción
-            if ($this->moneda_visual === 'usd') {
-                // Para simplificar la gráfica, convertimos el total del día a USD
-                // (en un caso real, se haría transacción por transacción)
-                $tasaPromedio = \App\Models\Tasa::montoPredeterminada('dolar') ?? 1;
-                $ingresosPorDia[] = round($ingresosDia / $tasaPromedio, 2);
-                $egresosPorDia[] = round($egresosDia / $tasaPromedio, 2);
-            } else {
-                $ingresosPorDia[] = round($ingresosDia, 2);
-                $egresosPorDia[] = round($egresosDia, 2);
-            }
+
+            $ingresosPorDia[] = round($ingresosDia, 2);
+            $egresosPorDia[] = round($egresosDia, 2);
         }
 
         return [
@@ -98,7 +96,7 @@ new class extends Component
 
         $gastos = Gasto::whereBetween('fecha_gasto', [$desde, $hasta])->get();
 
-        // 1. Calcular Totales (en la moneda original de cada transacción)
+        // 1. Calcular Totales
         $ingresosTotales = 0;
         $egresosTotales = 0;
         $desgloseFormas = [
@@ -115,11 +113,12 @@ new class extends Component
         $desgloseMedicos = [];
 
         foreach ($pagos as $p) {
-            // Convertir a la moneda visual
+            // Regla de conversión para PAGOS en los KPIs
+            $tasa = (float) ($p->tasa_momento ?: 1);
             if ($this->moneda_visual === 'bs') {
-                $montoFinal = $p->moneda === 'bs' ? (float) $p->monto : (float) $p->monto * (float) $p->tasa_momento;
+                $montoFinal = $p->moneda === 'bs' ? (float) $p->monto : (float) $p->monto * $tasa;
             } else {
-                $montoFinal = $p->moneda === 'dolar' ? (float) $p->monto : (float) $p->monto / (float) ($p->tasa_momento ?: 1);
+                $montoFinal = $p->moneda === 'dolar' ? (float) $p->monto : (float) $p->monto / $tasa;
             }
             
             $ingresosTotales += $montoFinal;
@@ -144,10 +143,12 @@ new class extends Component
         }
 
         foreach ($gastos as $g) {
+            // Regla de conversión para GASTOS en los KPIs
+            $tasa = (float) ($g->tasa_cambio ?: 1);
             if ($this->moneda_visual === 'bs') {
-                $montoFinal = $g->moneda === 'bs' ? (float) $g->monto : (float) $g->monto * (float) ($g->tasa_cambio ?: 1);
+                $montoFinal = $g->moneda === 'bs' ? (float) $g->monto : (float) $g->monto * $tasa;
             } else {
-                $montoFinal = $g->moneda === 'dolar' ? (float) $g->monto : (float) $g->monto / (float) ($g->tasa_cambio ?: 1);
+                $montoFinal = $g->moneda === 'dolar' ? (float) $g->monto : (float) $g->monto / $tasa;
             }
             $egresosTotales += $montoFinal;
         }
@@ -170,8 +171,6 @@ new class extends Component
                     default => 'Otro'
                 };
                 $formasFormateadas[$label] = $monto;
-
-                
             }
         }
         arsort($formasFormateadas);

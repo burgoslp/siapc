@@ -22,8 +22,8 @@ new class extends Component
     public $monto_estimado = '';
     public $moneda = 'bs';
     public $frecuencia = 'MENSUAL';
-    public $fecha_pago = ''; // Usado para mensual/anual
-    public $dia_semana = ''; // Usado para semanal
+    public $fecha_pago = ''; 
+    public $dia_semana = ''; 
     public $cuenta_id = '';
     public $notas = '';
     public $activo = true;
@@ -36,15 +36,29 @@ new class extends Component
     public $cuenta_pago_id = '';
     public $fecha_pago_transaccion = '';
     public $tasa_pago = '';
+    public $es_tasa_preferencial_pago = false;
+    //lista desplegable
+    public $recurrenciaExpandida = null;
 
     public function updatingSearch(): void { $this->resetPage(); }
 
     #[On('recurrencia-guardada')]
     public function refrescar(): void {}
 
+    public function toggleExpandir(int $id): void
+    {
+        if ($this->recurrenciaExpandida === $id) {
+            $this->recurrenciaExpandida = null; // Se cierra
+        } else {
+            $this->recurrenciaExpandida = $id; // Se abre
+        }
+    }
+
     // ==========================================
-    // MODAL RECURRENCIA
+    // MODAL RECURRENCIA (CREAR/EDITAR)
     // ==========================================
+    
+    // 👇 ESTE ES EL MÉTODO QUE FALTABA 👇
     public function abrirModal(): void
     {
         $this->resetValidation();
@@ -55,6 +69,7 @@ new class extends Component
         $this->activo = true;
         $this->modalAbierto = true;
     }
+    // 👆 FIN DEL MÉTODO QUE FALTABA 👆
 
     public function editar(int $id): void
     {
@@ -91,12 +106,10 @@ new class extends Component
             'notas' => 'nullable|string',
             'activo' => 'boolean',
             
-            // Validaciones condicionales
             'fecha_pago' => 'required_unless:frecuencia,SEMANAL|nullable|date',
             'dia_semana' => 'required_if:frecuencia,SEMANAL|nullable|in:LUNES,MARTES,MIERCOLES,JUEVES,VIERNES,SABADO,DOMINGO',
         ]);
 
-        // Limpiamos el campo que no aplica
         if ($this->frecuencia === 'SEMANAL') {
             $datos['fecha_pago'] = null;
         } else {
@@ -138,9 +151,10 @@ new class extends Component
         $this->moneda_pago = $rec->moneda;
         $this->cuenta_pago_id = $rec->cuenta_id;
         $this->fecha_pago_transaccion = now()->format('Y-m-d');
+        
+        $this->es_tasa_preferencial_pago = false; 
         $this->tasa_pago = '';
         
-        // Cargar tasa si es dólar/euro
         if ($rec->moneda !== 'bs') {
             $tasa = Tasa::predeterminada();
             $cambio = $tasa?->cambioActualDe($rec->moneda);
@@ -148,6 +162,19 @@ new class extends Component
         }
 
         $this->modalPagoAbierto = true;
+    }
+
+    public function updatedEsTasaPreferencialPago($value): void
+    {
+        if ($value) {
+            $this->tasa_pago = null;
+        } else {
+            if ($this->moneda_pago !== 'bs') {
+                $tasa = Tasa::predeterminada();
+                $cambio = $tasa?->cambioActualDe($this->moneda_pago);
+                $this->tasa_pago = $cambio?->monto;
+            }
+        }
     }
 
     public function cerrarModalPago(): void
@@ -168,7 +195,6 @@ new class extends Component
         if (!$rec) return;
 
         \DB::transaction(function () use ($rec) {
-            // 1. Crear el Gasto
             $gasto = Gasto::create([
                 'tipo_gasto' => 'FIJO',
                 'recurrencia_id' => $rec->id,
@@ -181,7 +207,6 @@ new class extends Component
                 'registrado_por' => auth()->id(),
             ]);
 
-            // 2. Registrar en Tesorería (Egreso)
             $cuenta = Cuenta::find($this->cuenta_pago_id);
             if ($cuenta) {
                 $montoEnCuenta = (float) $this->monto_pago;
@@ -223,14 +248,12 @@ new class extends Component
         $recurrencias->getCollection()->transform(function ($rec) {
             $hoy = Carbon::today();
             
-            // 1. Obtener último pago
             $ultimoGasto = Gasto::where('recurrencia_id', $rec->id)
                 ->orderByDesc('fecha_gasto')
                 ->first();
                 
             $rec->ultimo_pago = $ultimoGasto ? $ultimoGasto->fecha_gasto : null;
 
-            // 2. Calcular próximo pago según la frecuencia
             $proximoPago = $hoy->copy();
 
             if ($rec->frecuencia === 'MENSUAL') {
@@ -238,7 +261,6 @@ new class extends Component
                 $proximoPago->day($dia);
                 if ($proximoPago->isPast()) $proximoPago->addMonth();
                 
-                // Si ya pagó este mes
                 if ($ultimoGasto && $ultimoGasto->fecha_gasto >= $hoy->copy()->day($dia)) {
                     $proximoPago->addMonth();
                 }
@@ -247,7 +269,6 @@ new class extends Component
                 $proximoPago->dayOfWeek($diasMap[$rec->dia_semana] ?? 1);
                 if ($proximoPago->isPast()) $proximoPago->addWeek();
                 
-                // Si ya pagó esta semana
                 if ($ultimoGasto && $ultimoGasto->fecha_gasto >= $hoy->copy()->startOfWeek()) {
                     $proximoPago->addWeek();
                 }
@@ -257,13 +278,11 @@ new class extends Component
                 $proximoPago->setDate($hoy->year, $mes, $dia);
                 if ($proximoPago->isPast()) $proximoPago->addYear();
                 
-                // Si ya pagó este año
                 if ($ultimoGasto && $ultimoGasto->fecha_gasto >= $hoy->copy()->setDate($hoy->year, $mes, $dia)) {
                     $proximoPago->addYear();
                 }
             }
 
-            // 3. Lógica Inteligente de Adelantos (Pagos extra)
             if ($ultimoGasto) {
                 $pagosCiclo = Gasto::where('recurrencia_id', $rec->id)
                     ->where('fecha_gasto', '>=', $hoy->copy()->subMonth())
@@ -358,29 +377,17 @@ new class extends Component
                                 <div class="text-sm font-medium text-gray-800">
                                     {{ $rec->proximo_pago->format('d/m/Y') }}
                                 </div>
-                                
                                 @if($rec->dias_restantes < 0)
-                                    <span class="text-xs font-semibold text-red-600">
-                                        Vencido hace {{ abs($rec->dias_restantes) }} días
-                                    </span>
+                                    <span class="text-xs font-semibold text-red-600">Vencido hace {{ abs($rec->dias_restantes) }} días</span>
                                 @elseif($rec->dias_restantes == 0)
-                                    <span class="text-xs font-semibold text-orange-500">
-                                        ¡Vence Hoy!
-                                    </span>
+                                    <span class="text-xs font-semibold text-orange-500">¡Vence Hoy!</span>
                                 @elseif($rec->dias_restantes <= 5)
-                                    <span class="text-xs font-semibold text-amber-500">
-                                        Faltan {{ $rec->dias_restantes }} días
-                                    </span>
+                                    <span class="text-xs font-semibold text-amber-500">Faltan {{ $rec->dias_restantes }} días</span>
                                 @else
-                                    <span class="text-xs text-gray-500">
-                                        Faltan {{ $rec->dias_restantes }} días
-                                    </span>
+                                    <span class="text-xs text-gray-500">Faltan {{ $rec->dias_restantes }} días</span>
                                 @endif
-
                                 @if($rec->ultimo_pago)
-                                    <div class="text-[10px] text-gray-400 mt-0.5">
-                                        Último pago: {{ $rec->ultimo_pago->format('d/m/Y') }}
-                                    </div>
+                                    <div class="text-[10px] text-gray-400 mt-0.5">Último pago: {{ $rec->ultimo_pago->format('d/m/Y') }}</div>
                                 @endif
                             </td>
 
@@ -396,6 +403,11 @@ new class extends Component
 
                             {{-- Acciones --}}
                             <td class="px-4 py-3 text-right whitespace-nowrap">
+                                {{-- 👇 NUEVO BOTÓN DE EXPANDIR 👇 --}}
+                                <button wire:click="toggleExpandir({{ $rec->id }})" class="p-1 text-slate-500 hover:bg-slate-100 rounded mr-1 transition-transform" title="Ver pagos">
+                                    <svg class="w-4 h-4 transition-transform duration-200 {{ $recurrenciaExpandida === $rec->id ? 'rotate-90' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                </button>
+
                                 <button wire:click="abrirModalPago({{ $rec->id }})" class="p-1 text-emerald-600 hover:bg-emerald-50 rounded mr-1" title="Registrar Pago">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                                 </button>
@@ -411,6 +423,79 @@ new class extends Component
                                 </button>
                             </td>
                         </tr>
+
+                        {{-- 👇 FILA EXPANDIBLE CON EL HISTORIAL DE PAGOS 👇 --}}
+                        @if ($recurrenciaExpandida === $rec->id)
+                            <tr class="bg-slate-50 border-b-2 border-slate-200">
+                                <td colspan="7" class="px-6 py-4">
+                                    <h4 class="text-xs font-bold text-slate-600 uppercase mb-3 text-right">Últimos 10 Pagos Registrados</h4>
+                                    
+                                    @php
+                                        $pagosRec = $rec->gastos()->with('cuenta')->orderByDesc('fecha_gasto')->limit(10)->get();
+                                    @endphp
+
+                                    @if($pagosRec->isEmpty())
+                                        <p class="text-sm text-slate-400 italic">No hay pagos registrados aún para este gasto fijo.</p>
+                                    @else
+                                        <div class="overflow-x-auto">
+                                            <table class="w-full text-left text-xs">
+                                                <thead class="text-slate-500 uppercase border-b border-slate-200">
+                                                    <tr>
+                                                        <th class="pb-2 pl-2">Fecha</th>
+                                                        <th class="pb-2">Cuenta</th>
+                                                        <th class="pb-2 text-center">Moneda</th>
+                                                        <th class="pb-2 text-right">Monto</th>
+                                                        <th class="pb-2 text-right">Tasa</th>
+                                                        <th class="pb-2 pl-4">Concepto</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody class="divide-y divide-slate-200">
+                                                    @foreach($pagosRec as $p)
+                                                        <tr class="hover:bg-slate-100/50 transition">
+                                                            <td class="py-2 pl-2 text-slate-700 whitespace-nowrap">{{ $p->fecha_gasto->format('d/m/Y') }}</td>
+                                                            <td class="py-2 text-slate-600 whitespace-nowrap">{{ $p->cuenta?->nombre ?? 'N/A' }}</td>
+                                                            
+                                                            {{-- Moneda --}}
+                                                            <td class="py-2 text-center">
+                                                                <span class="px-1.5 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-[10px]">
+                                                                    {{ strtoupper($p->moneda) }}
+                                                                </span>
+                                                            </td>
+                                                            
+                                                            {{-- Monto --}}
+                                                            <td class="py-2 text-right font-semibold text-slate-800 whitespace-nowrap">
+                                                                {{ $p->moneda === 'bs' ? 'Bs ' : ($p->moneda === 'dolar' ? '$ ' : '€ ') }}{{ number_format($p->monto, 2) }}
+                                                            </td>
+                                                            
+                                                            {{-- Tasa de Cambio --}}
+                                                            <td class="py-2 text-right text-slate-600 whitespace-nowrap">
+                                                                @if($p->tasa_cambio)
+                                                                    {{ number_format($p->tasa_cambio, 2) }}
+                                                                @else
+                                                                    <span class="text-slate-400 italic">—</span>
+                                                                @endif
+                                                            </td>
+                                                            
+                                                            <td class="py-2 pl-4 text-slate-500 truncate max-w-[200px]" title="{{ $p->concepto }}">{{ $p->concepto }}</td>
+                                                        </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        
+                                        {{-- Enlace para ir a ver todos --}}
+                                        <div class="mt-3 text-right">
+                                            <a href="{{ route('gastos.variables.index', ['search' => $rec->concepto]) }}" class="text-xs font-semibold text-teal-600 hover:text-teal-700 inline-flex items-center">
+                                                Ver historial completo
+                                                <svg class="w-3.5 h-3.5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                                            </a>
+                                        </div>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endif
+                        {{-- FIN FILA EXPANDIBLE --}}
+
                     @empty
                         <tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No hay gastos fijos configurados.</td></tr>
                     @endforelse
