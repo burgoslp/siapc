@@ -28,13 +28,14 @@
         <div class="flex items-center justify-between">
             <label for="remember_me" class="inline-flex items-center cursor-pointer">
                 <input id="remember_me" type="checkbox"
-                       class="rounded border-slate-300 text-teal-600 shadow-sm focus:ring-teal-500"
+                       {{-- 👇 Cambiado de teal a siapc-blue --}}
+                       class="rounded border-slate-300 text-siapc-blue shadow-sm focus:ring-siapc-blue"
                        name="remember">
                 <span class="ms-2 text-sm text-slate-600">Recordarme</span>
             </label>
 
             @if (Route::has('password.request'))
-                <a class="text-sm font-medium text-teal-600 hover:text-teal-700 transition-colors"
+                <a class="text-sm font-medium text-siapc-blue hover:text-siapc-navy transition-colors"
                    href="{{ route('password.request') }}">
                     ¿Olvidaste tu contraseña?
                 </a>
