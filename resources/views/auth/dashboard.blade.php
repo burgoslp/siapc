@@ -37,38 +37,104 @@
 
     {{-- KPIs --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-            <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Citas Hoy</p>
-            <p class="text-3xl font-bold text-teal-700 mt-2">{{ $citasHoy }}</p>
-            <p class="text-xs text-slate-500 mt-1">{{ $consultasPendientes }} pendientes por atender</p>
+
+        {{-- Citas Hoy --}}
+        <div class="relative bg-white p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-teal-400 to-emerald-600"></div>
+            
+            <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider pl-2">Citas Hoy</p>
+            <p class="text-3xl font-bold text-slate-800 mt-2 pl-2">{{ $citasHoy }}</p>
+            <p class="text-xs text-slate-500 mt-1 pl-2">{{ $consultasPendientes }} pendientes por atender</p>
         </div>
 
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-            <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Ingresos Hoy</p>
-            <p class="text-3xl font-bold text-emerald-600 mt-2">Bs {{ number_format($ingresosHoy, 2) }}</p>
-            <p class="text-xs text-slate-500 mt-1">Cobros registrados</p>
+        {{-- Ingresos Hoy --}}
+        <div class="relative bg-white p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-blue-400 to-indigo-600"></div>
+            
+            <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider pl-2">Ingresos Hoy</p>
+            <div class="mt-2 pl-2 space-y-0.5">
+                <p class="text-xl font-bold {{ $ingresosHoyUsd > 0 ? 'text-emerald-600' : 'text-slate-400' }}">
+                    $ {{ number_format($ingresosHoyUsd, 2) }}
+                </p>
+                <p class="text-xl font-bold {{ $ingresosHoyBs > 0 ? 'text-emerald-600' : 'text-slate-400' }}">
+                    Bs {{ number_format($ingresosHoyBs, 2) }}
+                </p>
+            </div>
+            <p class="text-xs text-slate-500 mt-1 pl-2">Cobros registrados</p>
         </div>
 
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-            <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Ingresos del Mes</p>
-            <p class="text-3xl font-bold text-gray-800 mt-2">Bs {{ number_format($ingresosMes, 2) }}</p>
-            <p class="text-xs text-slate-500 mt-1">Acumulado mensual</p>
+        {{-- Ingresos del Mes --}}
+        <div class="relative bg-white p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-cyan-400 to-blue-600"></div>
+            
+            <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider pl-2">Ingresos del Mes</p>
+            <div class="mt-2 pl-2 space-y-0.5">
+                <p class="text-xl font-bold {{ $ingresosMesUsd > 0 ? 'text-slate-800' : 'text-slate-400' }}">
+                    $ {{ number_format($ingresosMesUsd, 2) }}
+                </p>
+                <p class="text-xl font-bold {{ $ingresosMesBs > 0 ? 'text-slate-800' : 'text-slate-400' }}">
+                    Bs {{ number_format($ingresosMesBs, 2) }}
+                </p>
+            </div>
+            <p class="text-xs text-slate-500 mt-1 pl-2">Acumulado mensual</p>
         </div>
 
+        {{-- Gastos del Mes --}}
         @if(!$esMedicoPuro)
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Gastos del Mes</p>
-                <p class="text-3xl font-bold text-red-600 mt-2">Bs {{ number_format($gastosMes, 2) }}</p>
-                <p class="text-xs text-slate-500 mt-1">Egresos registrados</p>
+            <div class="relative bg-white p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-rose-400 to-red-600"></div>
+                
+                <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider pl-2">Gastos del Mes</p>
+                <div class="mt-2 pl-2 space-y-0.5">
+                    <p class="text-xl font-bold {{ $gastosMesUsd > 0 ? 'text-red-600' : 'text-slate-400' }}">
+                        $ {{ number_format($gastosMesUsd, 2) }}
+                    </p>
+                    <p class="text-xl font-bold {{ $gastosMesBs > 0 ? 'text-red-600' : 'text-slate-400' }}">
+                        Bs {{ number_format($gastosMesBs, 2) }}
+                    </p>
+                </div>
+                <p class="text-xs text-slate-500 mt-1 pl-2">Egresos registrados</p>
             </div>
         @else
-            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
-                <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Consultas</p>
-                <p class="text-3xl font-bold text-blue-600 mt-2">{{ $consultasPendientes }}</p>
-                <p class="text-xs text-slate-500 mt-1">Pendientes por atender</p>
+            <div class="relative bg-white p-5 rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div class="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-b from-amber-400 to-orange-600"></div>
+                
+                <p class="text-sm font-semibold text-slate-500 uppercase tracking-wider pl-2">Consultas</p>
+                <p class="text-3xl font-bold text-blue-600 mt-2 pl-2">{{ $consultasPendientes }}</p>
+                <p class="text-xs text-slate-500 mt-1 pl-2">Pendientes por atender</p>
             </div>
         @endif
     </div>
+    {{-- ALERTAS DE GASTOS FIJOS --}}
+    @if(isset($alertasGastosFijos) && $alertasGastosFijos->count() > 0)
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-5 shadow-sm">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-8 h-8 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-amber-800">Gastos Fijos por Vencer</h3>
+                    <p class="text-xs text-amber-600">Tienes {{ $alertasGastosFijos->count() }} compromiso(s) programado(s) para los próximos 7 días.</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                @foreach($alertasGastosFijos as $alerta)
+                    <div class="bg-white p-3 rounded-lg border border-amber-100 flex justify-between items-center">
+                        <div>
+                            <p class="text-sm font-semibold text-gray-800">{{ $alerta->concepto }}</p>
+                            <p class="text-xs text-gray-500">
+                                Vence: {{ $alerta->fecha_proximo->format('d/m/Y') }} 
+                                <span class="font-bold {{ $alerta->dias_restantes == 0 ? 'text-red-500' : 'text-amber-600' }}">
+                                    ({{ $alerta->dias_restantes == 0 ? 'Hoy' : 'En ' . $alerta->dias_restantes . ' días' }})
+                                </span>
+                            </p>
+                        </div>
+                        <a href="{{ route('gastos.fijos.index') }}" class="text-xs font-semibold text-siapc-blue hover:text-siapc-indigo">Pagar &rarr;</a>
+                    </div>
+                @endforeach
+            </div>
+        </div>
+    @endif
 
     {{-- GRID PRINCIPAL --}}
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">

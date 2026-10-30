@@ -10,6 +10,7 @@ new class extends Component
 {
     public ?int $citaId = null;
     public bool $abierto = false;
+    public bool $soloLectura = false; // 👈 NUEVA PROPIEDAD
 
     public $numero_cita = null;
     public $paciente_id = '';
@@ -39,6 +40,7 @@ new class extends Component
         $this->hora = now()->addHour()->format('H:i');
         $this->citaId = null;
         $this->moneda = 'dolar';
+        $this->soloLectura = false; // 👈 Nueva cita es editable
 
         // Autoselecciona la tasa predeterminada
         $tasaPredeterminada = \App\Models\Tasa::predeterminada();
@@ -59,6 +61,7 @@ new class extends Component
         $this->hora = $hora;
         $this->citaId = null;
         $this->moneda = 'dolar';
+        $this->soloLectura = false; // 👈 Nueva cita es editable
 
         $tasaPredeterminada = \App\Models\Tasa::predeterminada();
         if ($tasaPredeterminada) {
@@ -74,6 +77,9 @@ new class extends Component
     {
         $cita = Cita::find($id);
         if (!$cita) return;
+        
+        // 👇 DETECTAMOS SI ES SOLO LECTURA 👇
+        $this->soloLectura = $cita->consulta !== null;
 
         $this->citaId = $cita->id;
         $this->numero_cita = $cita->numero_cita;
@@ -106,15 +112,16 @@ new class extends Component
     #[On('paciente-seleccionado')]
     public function setPaciente(?int $id): void
     {
+        if ($this->soloLectura) return;
         $this->paciente_id = $id ?? '';
     }
 
     #[On('medico-seleccionado')]
     public function setMedico(?int $id): void
     {
+        if ($this->soloLectura) return;
         $this->medico_id = $id ?? '';
         
-        // Disparar la lógica de autoselección de tarifa y tasa
         if ($id) {
             $this->updatedMedicoId();
         }
@@ -123,6 +130,7 @@ new class extends Component
     #[On('tarifa-seleccionada')]
     public function setTarifa(?int $id): void
     {
+        if ($this->soloLectura) return;
         $this->tarifa_id = $id ?? '';
         if ($id) {
             $this->updatedTarifaId();
@@ -137,6 +145,8 @@ new class extends Component
 
     public function guardar(): void
     {
+        if ($this->soloLectura) return; // 👈 Protección extra
+
         $datos = $this->validate([
             'paciente_id' => 'required|exists:pacientes,id',
             'medico_id' => 'required|exists:medicos,id',
@@ -177,8 +187,6 @@ new class extends Component
             'fecha' => $fechaHora,
             'motivo' => $this->motivo ?: null,
             'estado' => $this->estado,
-
-            // Facturación
             'tarifa_id' => $this->tarifa_id ?: null,
             'precio' => $this->precio ?: null,
             'descuento' => $this->descuento ?: 0,
@@ -202,26 +210,18 @@ new class extends Component
 
     public function updatedMedicoId(): void
     {
+        if ($this->soloLectura) return;
         if (!$this->medico_id) {
             $this->especialidad_id = null;
             return;
         }
 
-        // ============================
-        // Obtener la especialidad del médico
-        // ============================
         $medico = \App\Models\Medico::with('especialidades')->find($this->medico_id);
         if ($medico) {
-            // Tomamos la primera especialidad del médico (o null si no tiene)
             $this->especialidad_id = $medico->especialidades->first()?->id;
         }
-       
 
-        // ============================
-        // Autoseleccionar tasa predeterminada
-        // ============================
         $tasaPredeterminada = \App\Models\Tasa::predeterminada();
-
         if ($tasaPredeterminada) {
             $this->tasa_id = $tasaPredeterminada->id;
             $this->cargarCambioDeTasa();
@@ -230,6 +230,7 @@ new class extends Component
 
     public function updatedTarifaId(): void
     {
+        if ($this->soloLectura) return;
         if (!$this->tarifa_id) return;
 
         $tarifa = \App\Models\Tarifa::find($this->tarifa_id);
@@ -241,11 +242,13 @@ new class extends Component
 
     public function updatedPrecio(): void
     {
+        if ($this->soloLectura) return;
         $this->recalcularTotal();
     }
 
     public function updatedDescuento(): void
     {
+        if ($this->soloLectura) return;
         $this->recalcularTotal();
     }
 
@@ -258,11 +261,13 @@ new class extends Component
 
     public function updatedTasaId(): void
     {
+        if ($this->soloLectura) return;
         $this->cargarCambioDeTasa();
     }
 
     public function updatedMoneda(): void
     {
+        if ($this->soloLectura) return;
         $this->cargarCambioDeTasa();
     }
 
@@ -304,7 +309,7 @@ new class extends Component
                 {{-- Encabezado --}}
                 <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
                     <h3 class="text-lg font-bold text-gray-800">
-                        {{ $citaId ? 'Editar Cita ' . $numero_cita : 'Nueva Cita' }}
+                        {{ $citaId ? ($soloLectura ? 'Detalle de Cita ' : 'Editar Cita ') . $numero_cita : 'Nueva Cita' }}
                     </h3>
                     <button type="button" wire:click="cerrar" class="text-gray-400 hover:text-gray-600">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -313,6 +318,14 @@ new class extends Component
                     </button>
                 </div>
 
+                {{-- Banner de Solo Lectura --}}
+                @if($soloLectura)
+                    <div class="px-6 py-3 bg-amber-50 border-b border-amber-200 text-xs text-amber-800 flex items-center">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                        Esta cita ya fue atendida. Los datos se muestran en modo de solo lectura.
+                    </div>
+                @endif
+
                 {{-- Formulario --}}
                 <form wire:submit="guardar" class="px-6 py-5">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -320,42 +333,38 @@ new class extends Component
                         {{-- Paciente --}}
                         <div class="sm:col-span-2">
                             <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Paciente *</label>
-                            
                             <livewire:paciente-select :value="$paciente_id ?: null" :key="'paciente-select-' . ($citaId ?? 'nuevo') . '-' . $paciente_id"/>
-                            
                             @error('paciente_id') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
 
                         {{-- Médico --}}
                         <div class="sm:col-span-2">
                             <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Médico *</label>
-                            
                             <livewire:medico-select :value="$medico_id ?: null" :key="'medico-select-' . ($citaId ?? 'nuevo') . '-' . $medico_id"/>
-                            
                             @error('medico_id') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
 
                         {{-- Fecha --}}
                         <div>
                             <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Fecha *</label>
-                            <input type="date" wire:model="fecha"
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <input type="date" wire:model="fecha" @if($soloLectura) disabled @endif
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-500">
                             @error('fecha') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
 
                         {{-- Hora --}}
                         <div>
                             <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Hora *</label>
-                            <input type="time" wire:model="hora"
-                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <input type="time" wire:model="hora" @if($soloLectura) disabled @endif
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-500">
                             @error('hora') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
 
                         {{-- Estado --}}
                         <div class="sm:col-span-2">
                             <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Estado *</label>
-                            <select wire:model="estado"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <select wire:model="estado" @if($soloLectura) disabled @endif
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-500">
                                 <option value="PENDIENTE">Pendiente</option>
                                 <option value="CONFIRMADA">Confirmada</option>
                                 <option value="CANCELADA">Cancelada</option>
@@ -367,15 +376,14 @@ new class extends Component
                         {{-- Motivo --}}
                         <div class="sm:col-span-2">
                             <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Motivo</label>
-                            <textarea wire:model="motivo" rows="3"
+                            <textarea wire:model="motivo" rows="3" @if($soloLectura) disabled @endif
                                       placeholder="Motivo de la consulta..."
-                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none"></textarea>
+                                      class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none disabled:bg-gray-50 disabled:text-gray-500"></textarea>
                             @error('motivo') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                         </div>
                     </div>
-                    {{-- ============================================ --}}
-                    {{-- SECCIÓN: FACTURACIÓN --}}
-                    {{-- ============================================ --}}
+
+                    {{-- FACTURACIÓN --}}
                     <div class="sm:col-span-2 pt-4 mt-2 border-t border-gray-100">
                         <h4 class="text-sm font-bold text-teal-700 uppercase tracking-wide mb-3 flex items-center">
                             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -385,39 +393,26 @@ new class extends Component
                         </h4>
 
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-
-                            {{-- Tarifa --}}
                             <div class="sm:col-span-3">
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Tarifa</label>
-                                
-                                <livewire:tarifa-select 
-                                    :value="$tarifa_id ?: null" 
-                                    :especialidadId="$especialidad_id" 
-                                    :key="'tarifa-select-' . ($citaId ?? 'nuevo') . '-' . $especialidad_id . '-' . $tarifa_id" 
-                                />
-                                
+                                <livewire:tarifa-select :value="$tarifa_id ?: null" :especialidadId="$especialidad_id" :key="'tarifa-select-' . ($citaId ?? 'nuevo') . '-' . $especialidad_id . '-' . $tarifa_id"/>
                                 @error('tarifa_id') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
 
-                            {{-- Precio --}}
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Precio (USD)</label>
-                                <input type="number" step="0.01" wire:model.live="precio"
+                                <input type="number" step="0.01" wire:model.live="precio" @if($soloLectura) disabled @endif
                                     placeholder="0.00"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                                @error('precio') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-500">
                             </div>
 
-                            {{-- Descuento --}}
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Descuento (USD)</label>
-                                <input type="number" step="0.01" wire:model.live="descuento"
+                                <input type="number" step="0.01" wire:model.live="descuento" @if($soloLectura) disabled @endif
                                     placeholder="0.00"
-                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                                @error('descuento') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-500">
                             </div>
 
-                            {{-- Total USD --}}
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Total (USD)</label>
                                 <input type="text" wire:model="total" readonly
@@ -425,65 +420,40 @@ new class extends Component
                             </div>
                         </div>
 
-                        {{-- Subsección: Tasa y moneda --}}
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 pt-4 border-t border-gray-100">
-
-                            {{-- Tasa --}}
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Tasa aplicada</label>
-                                <select wire:model.live="tasa_id"
-                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <select wire:model.live="tasa_id" @if($soloLectura) disabled @endif
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-500">
                                     <option value="">Sin tasa asignada</option>
                                     @foreach (\App\Models\Tasa::where('activa', true)->orderByDesc('predeterminado')->orderBy('nombre')->get() as $t)
-                                        <option value="{{ $t->id }}">
-                                            {{ $t->etiqueta }}
-                                            @if ($t->predeterminado) (predeterminada) @endif
-                                        </option>
+                                        <option value="{{ $t->id }}">{{ $t->etiqueta }} @if ($t->predeterminado) (predeterminada) @endif</option>
                                     @endforeach
                                 </select>
-                                @error('tasa_id') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
 
-                            {{-- Moneda --}}
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Moneda</label>
-                                <select wire:model.live="moneda"
-                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <select wire:model.live="moneda" @if($soloLectura) disabled @endif
+                                        class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-50 disabled:text-gray-500">
                                     <option value="dolar">Dólar (USD)</option>
                                     <option value="euro">Euro (EUR)</option>
                                 </select>
-                                @error('moneda') <span class="text-xs text-red-500">{{ $message }}</span> @enderror
                             </div>
                         </div>
 
-                        {{-- Resumen del cálculo --}}
+                        {{-- Resumen --}}
                         @if ($total && $monto_tasa_cambio)
-                            @php
-                                $totalBs = (float) $total * (float) $monto_tasa_cambio;
-                            @endphp
+                            @php $totalBs = (float) $total * (float) $monto_tasa_cambio; @endphp
                             <div class="mt-3 p-3 bg-slate-50 border border-slate-200 rounded-lg">
                                 <div class="flex items-center justify-between text-xs">
-                                    <span class="text-gray-600">
-                                        Tasa aplicada
-                                        ({{ $moneda === 'dolar' ? 'USD' : 'EUR' }}):
-                                    </span>
-                                    <span class="font-semibold text-gray-800">
-                                        Bs {{ number_format($monto_tasa_cambio, 4) }}
-                                    </span>
+                                    <span class="text-gray-600">Tasa aplicada ({{ $moneda === 'dolar' ? 'USD' : 'EUR' }}):</span>
+                                    <span class="font-semibold text-gray-800">Bs {{ number_format($monto_tasa_cambio, 4) }}</span>
                                 </div>
                                 <div class="flex items-center justify-between text-sm mt-1">
                                     <span class="font-semibold text-gray-700">Total en Bolívares:</span>
-                                    <span class="font-bold text-teal-700 text-lg">
-                                        Bs {{ number_format($totalBs, 2) }}
-                                    </span>
+                                    <span class="font-bold text-teal-700 text-lg">Bs {{ number_format($totalBs, 2) }}</span>
                                 </div>
-                            </div>
-                        @elseif ($total && !$monto_tasa_cambio)
-                            <div class="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
-                                <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                                </svg>
-                                La tasa seleccionada no tiene cotización para esta moneda. Se guardará el total sin equivalencia en Bs.
                             </div>
                         @endif
                     </div>
@@ -492,12 +462,15 @@ new class extends Component
                     <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
                         <button type="button" wire:click="cerrar"
                                 class="px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
-                            Cancelar
+                            {{ $soloLectura ? 'Cerrar' : 'Cancelar' }}
                         </button>
-                        <button type="submit"
-                                class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium">
-                            {{ $citaId ? 'Guardar Cambios' : 'Registrar Cita' }}
-                        </button>
+                        
+                        @unless($soloLectura)
+                            <button type="submit"
+                                    class="px-5 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-medium">
+                                {{ $citaId ? 'Guardar Cambios' : 'Registrar Cita' }}
+                            </button>
+                        @endunless
                     </div>
                 </form>
             </div>

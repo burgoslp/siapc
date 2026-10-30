@@ -15,6 +15,7 @@ class Recurrencia extends Model
     protected $guarded = [];
 
     protected $casts = [
+        'fecha_pago' => 'date',
         'monto_estimado' => 'decimal:2',
         'activo' => 'boolean',
     ];
