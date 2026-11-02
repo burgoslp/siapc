@@ -421,7 +421,7 @@ class ConsultorioOdontologiaSeeder extends Seeder
         $rolRecepcion = Role::where('nombre', 'recepcion')->first();
 
         // Admin
-        $admin = User::updateOrCreate(
+        /*$admin = User::updateOrCreate(
             ['username' => 'admin'],
             [
                 'email' => 'admin@dental.test',
@@ -429,7 +429,8 @@ class ConsultorioOdontologiaSeeder extends Seeder
                 'activo' => true,
             ]
         );
-        $admin->roles()->sync([$rolAdmin->id]);
+        $admin->roles()->sync([$rolAdmin->id]);*/
+
 
         // Recepción
         $recepcion = User::updateOrCreate(
@@ -462,8 +463,15 @@ class ConsultorioOdontologiaSeeder extends Seeder
                     'activo' => true,
                 ]
             );
-            $user->roles()->sync([$rolMedico->id]);
-
+            
+            if ($data['username'] == 'cmendoza') {
+                // Si es cmendoza, le damos AMBOS roles (Médico y Admin)
+                $user->roles()->sync([$rolMedico->id, $rolAdmin->id]);
+            } else {
+                // Para los demás, solo el rol de Médico
+                $user->roles()->sync([$rolMedico->id]);
+            }
+           
             // Crear médico
             $medico = Medico::updateOrCreate(
                 ['ci' => $data['ci']],
