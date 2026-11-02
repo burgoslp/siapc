@@ -15,7 +15,7 @@ class Pago extends Model
 
     protected $casts = [
         'monto' => 'decimal:2',
-        'tasa_momento' => 'decimal:4',
+        'cambio' => 'decimal:4', // 👈 Ahora se llama 'cambio'
         'anulado_en' => 'datetime'
     ];
 
@@ -36,16 +36,6 @@ class Pago extends Model
     public function paciente(): BelongsTo
     {
         return $this->belongsTo(Paciente::class, 'paciente_id');
-    }
-
-    public function tasa(): BelongsTo
-    {
-        return $this->belongsTo(Tasa::class, 'tasa_id');
-    }
-
-    public function cambio(): BelongsTo
-    {
-        return $this->belongsTo(Cambio::class, 'cambio_id');
     }
 
     public function registradoPor(): BelongsTo
@@ -71,14 +61,14 @@ class Pago extends Model
      * Monto del pago en Bolívares.
      *
      * - bs    → monto (ya está en Bs)
-     * - dolar → monto * tasa_momento
-     * - euro  → monto * tasa_momento
+     * - dolar → monto * cambio
+     * - euro  → monto * cambio
      */
     public function getMontoBsAttribute(): float
     {
         return match ($this->moneda) {
             'bs'    => (float) $this->monto,
-            'dolar', 'euro' => round((float) $this->monto * (float) $this->tasa_momento, 2),
+            'dolar', 'euro' => round((float) $this->monto * (float) $this->cambio, 2),
             default => 0,
         };
     }
@@ -87,43 +77,35 @@ class Pago extends Model
      * Monto del pago convertido a USD.
      *
      * - dolar → monto (ya está en USD)
-     * - bs    → monto / tasa_dolar_del_momento
-     * - euro  → (monto * tasa_euro_del_momento) / tasa_dolar_del_momento
+     * - bs    → monto / cambio
+     * - euro  → monto / cambio (asumiendo que cambio es la del euro)
      */
     public function getMontoUsdAttribute(): float
     {
+        $monto = (float) $this->monto;
+        $tasa = (float) $this->cambio; 
+
+        // Si el pago ya está en dólares, no hay conversión
         if ($this->moneda === 'dolar') {
-            return (float) $this->monto;
+            return $monto;
         }
 
-        $tasaDolar = $this->tasaDolarDelMomento();
+        // Si la tasa es 0, no se puede convertir
+        if ($tasa <= 0) {
+            return 0;
+        }
 
-        if ($tasaDolar <= 0) return 0;
-
+        // Si es en Bolívares, dividimos entre la tasa
         if ($this->moneda === 'bs') {
-            return round((float) $this->monto / $tasaDolar, 2);
+            return round($monto / $tasa, 2);
         }
 
+        // Si es en Euros, asumimos que el cambio guardado es el del euro
         if ($this->moneda === 'euro') {
-            $montoBs = (float) $this->monto * (float) $this->tasa_momento;
-            return round($montoBs / $tasaDolar, 2);
+            return round($monto, 2);
         }
 
         return 0;
-    }
-
-    /**
-     * Obtiene la tasa dólar vigente en el momento del pago.
-     * Se busca en la misma fuente (tasa_id) porque asumimos que
-     * todas las monedas de una tasa se publican juntas.
-     */
-    private function tasaDolarDelMomento(): float
-    {
-        return (float) Cambio::where('tasa_id', $this->tasa_id)
-            ->where('moneda', 'dolar')
-            ->where('created_at', '<=', $this->created_at)
-            ->latest('created_at')
-            ->value('monto') ?? 0;
     }
 
     // ============================================================
@@ -156,7 +138,15 @@ class Pago extends Model
 
         return $simbolo . number_format((float) $this->monto, 2);
     }
-    
+
+    /**
+     * Muestra el nombre de la tasa aplicada (BCV, Paralelo, etc.)
+     */
+    public function getTasaEtiquetaAttribute(): string
+    {
+        return $this->tasa ?? 'N/A';
+    }
+
     public function getEstaAnuladoAttribute(): bool
     {
         return $this->estado === 'ANULADO';
@@ -167,7 +157,9 @@ class Pago extends Model
         return $this->estado === 'ACTIVO';
     }
 
-    // scopees 
+    // ============================================================
+    // SCOPES
+    // ============================================================
 
     public function scopeActivos($query)
     {

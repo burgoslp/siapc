@@ -44,38 +44,23 @@ class Cita extends Model
         return $this->belongsTo(Tarifa::class, 'tarifa_id');
     }
 
-    public function tasa(): BelongsTo
-    {
-        return $this->belongsTo(Tasa::class, 'tasa_id');
-    }
-
-    public function cambio(): BelongsTo
-    {
-        return $this->belongsTo(Cambio::class, 'cambio_id');
-    }
 
     public function pagos(): HasMany
     {
         return $this->hasMany(Pago::class, 'cita_id');
     }
 
-
     protected static function booted()
     {
         static::creating(function ($cita) {
-            // Si la cita no tiene un numero asignado, lo generamos
             if (empty($cita->numero_cita)) {
                 $ultimaCita = static::orderByDesc('id')->first();
-                
-                // Si no hay citas previas, empezamos en 1
                 $siguienteNumero = 1;
                 
                 if ($ultimaCita && $ultimaCita->numero_cita) {
-                    // Extraemos el número del formato CIT-0001
                     $siguienteNumero = (int) str_replace('CIT-', '', $ultimaCita->numero_cita) + 1;
                 }
 
-                // Formateamos con ceros a la izquierda (Ej: CIT-0001)
                 $cita->numero_cita = 'CIT-' . str_pad($siguienteNumero, 4, '0', STR_PAD_LEFT);
             }
         });
@@ -85,38 +70,16 @@ class Cita extends Model
     // SCOPES
     // ============================================================
 
-    public function scopeHoy($q)
-    {
-        return $q->whereDate('fecha', today());
-    }
-
-    public function scopeFuturas($q)
-    {
-        return $q->where('fecha', '>=', now());
-    }
-
-    public function scopePendientes($q)
-    {
-        return $q->where('estado', 'PENDIENTE');
-    }
-
-    public function scopeConfirmadas($q)
-    {
-        return $q->where('estado', 'CONFIRMADA');
-    }
-
-    public function scopeCompletadas($q)
-    {
-        return $q->where('estado', 'COMPLETADA');
-    }
+    public function scopeHoy($q) { return $q->whereDate('fecha', today()); }
+    public function scopeFuturas($q) { return $q->where('fecha', '>=', now()); }
+    public function scopePendientes($q) { return $q->where('estado', 'PENDIENTE'); }
+    public function scopeConfirmadas($q) { return $q->where('estado', 'CONFIRMADA'); }
+    public function scopeCompletadas($q) { return $q->where('estado', 'COMPLETADA'); }
 
     // ============================================================
     // ACCESSORS DE TOTALES
     // ============================================================
 
-    /**
-     * Total de la cita en Bs (usando la tasa congelada en la cita).
-     */
     public function getTotalBsAttribute(): ?float
     {
         if (!$this->total || !$this->monto_tasa_cambio) {
@@ -126,10 +89,6 @@ class Cita extends Model
         return round((float) $this->total * (float) $this->monto_tasa_cambio, 2);
     }
 
-    /**
-     * Total pagado en USD, calculado sumando los pagos.
-     * Solo se usa para saber si la cita está PAGADA / PARCIAL.
-     */
     public function getTotalPagadoUsdAttribute(): float
     {
         return round(
@@ -138,17 +97,11 @@ class Cita extends Model
         );
     }
 
-    /**
-     * Saldo pendiente en USD.
-     */
     public function getSaldoPendienteUsdAttribute(): float
     {
         return max(0, round((float) $this->total - $this->total_pagado_usd, 2));
     }
 
-    /**
-     * Saldo pendiente en Bs (usando la tasa de la cita).
-     */
     public function getSaldoPendienteBsAttribute(): float
     {
         $tasaCita = (float) $this->monto_tasa_cambio;
@@ -169,9 +122,7 @@ class Cita extends Model
 
     public function getTotalBsFormateadoAttribute(): ?string
     {
-        return $this->total_bs
-            ? 'Bs ' . number_format($this->total_bs, 2)
-            : null;
+        return $this->total_bs ? 'Bs ' . number_format($this->total_bs, 2) : null;
     }
 
     public function getTotalPagadoFormateadoAttribute(): string
@@ -193,9 +144,6 @@ class Cita extends Model
     // LÓGICA DE PAGOS
     // ============================================================
 
-    /**
-     * Recalcula el estado de pago según el acumulado en pagos.
-     */
     public function recalcularEstadoPago(): void
     {
         $total = (float) $this->total;
@@ -212,10 +160,6 @@ class Cita extends Model
         $this->save();
     }
 
-    /**
-     * Agrega un monto en Bs al acumulador de la cita.
-     * Este acumulador es para el cuadre de caja.
-     */
     public function agregarPagoBs(float $montoBs): void
     {
         $this->total_pagado = round((float) $this->total_pagado + $montoBs, 2);

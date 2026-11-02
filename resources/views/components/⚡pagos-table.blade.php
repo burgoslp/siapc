@@ -45,8 +45,7 @@ new class extends Component
             'paciente',
             'registradoPor',
             'anuladoPor',
-            'tasa',
-            'cambio',
+            // 👈 Eliminadas las relaciones 'tasa' y 'cambio'
         ]);
 
         if ($this->cajaId) {
@@ -65,7 +64,6 @@ new class extends Component
                 $q->whereHas('cita', function ($citaQuery) use ($term) {
                     $citaQuery->where('numero_cita', 'like', "%{$term}%");
                 })
-                // 2. O buscar por datos del paciente (como ya lo tenías)
                 ->orWhereHas('paciente', function ($pac) use ($term) {
                     $pac->where('nombre', 'like', "%{$term}%")
                         ->orWhere('apellido', 'like', "%{$term}%")
@@ -224,17 +222,15 @@ new class extends Component
                                 {{ $pago->moneda_etiqueta }}
                             </td>
 
-                            {{-- Tasa --}}
+                            {{-- Tasa (Nombre y Valor) --}}
                             <td class="px-3 py-3 text-right text-xs">
-                                @if ($pago->tasa_momento)
+                                @if ($pago->cambio)
                                     <div class="font-semibold text-gray-700">
-                                        {{ number_format($pago->tasa_momento, 2) }}
+                                        {{ number_format($pago->cambio, 2) }}
                                     </div>
-                                    @if ($pago->tasa)
-                                        <div class="text-[10px] text-gray-500">
-                                            {{ $pago->tasa->etiqueta }}
-                                        </div>
-                                    @endif
+                                    <div class="text-[10px] {{ $pago->tasa === 'Preferencial' ? 'text-amber-600 font-bold' : 'text-gray-500' }}">
+                                        {{ $pago->tasa }}
+                                    </div>
                                 @else
                                     <span class="text-gray-400">—</span>
                                 @endif

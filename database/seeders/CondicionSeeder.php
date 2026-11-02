@@ -76,6 +76,18 @@ class CondicionSeeder extends Seeder
             ['nombre' => 'Anemia Ferropénica', 'codigo_cie10' => 'D50', 'categoria' => 'OTRA', 'requiere_seguimiento' => true, 'frecuencia_seguimiento_dias' => 90, 'descripcion' => 'Deficiencia de hierro que causa anemia.'],
             ['nombre' => 'Dermatitis Atópica', 'codigo_cie10' => 'L20', 'categoria' => 'OTRA', 'requiere_seguimiento' => false, 'frecuencia_seguimiento_dias' => null, 'descripcion' => 'Inflamación crónica de la piel.'],
             ['nombre' => 'Psoriasis', 'codigo_cie10' => 'L40', 'categoria' => 'OTRA', 'requiere_seguimiento' => true, 'frecuencia_seguimiento_dias' => 90, 'descripcion' => 'Enfermedad inflamatoria crónica de la piel.'],
+        
+            // =========================================================
+            // CONDICIONES ESPECÍFICAS PARA ODONTOLOGÍA
+            // =========================================================
+            
+            ['nombre' => 'Embarazo', 'codigo_cie10' => 'Z33', 'categoria' => 'OTRA', 'requiere_seguimiento' => true, 'frecuencia_seguimiento_dias' => 30, 'descripcion' => 'Estado de gravidez. Requiere precaución con radiografías y medicamentos.'],
+            ['nombre' => 'Periodo de Lactancia', 'codigo_cie10' => 'Z39.1', 'categoria' => 'OTRA', 'requiere_seguimiento' => true, 'frecuencia_seguimiento_dias' => 30, 'descripcion' => 'Madre en periodo de lactancia materna.'],
+            ['nombre' => 'Coagulopatías / Anticoagulados', 'codigo_cie10' => 'D68', 'categoria' => 'OTRA', 'requiere_seguimiento' => true, 'frecuencia_seguimiento_dias' => 60, 'descripcion' => 'Trastornos de la coagulación o uso de anticoagulantes (Aspirina, Sintrom, Warfarina). Riesgo de sangrado en cirugías.'],
+            ['nombre' => 'Hepatitis C', 'codigo_cie10' => 'B18.2', 'categoria' => 'INFECCIOSA', 'requiere_seguimiento' => true, 'frecuencia_seguimiento_dias' => 90, 'descripcion' => 'Infección crónica por el virus de la hepatitis C. Precaución en procedimientos con sangrado.'],
+            ['nombre' => 'Herpes Labial', 'codigo_cie10' => 'B00.1', 'categoria' => 'INFECCIOSA', 'requiere_seguimiento' => false, 'frecuencia_seguimiento_dias' => null, 'descripcion' => 'Infección viral recurrente en labios. Evitar tratamientos estéticos durante brotes.'],
+            ['nombre' => 'Bruxismo', 'codigo_cie10' => 'F45.8', 'categoria' => 'MUSCULOESQUELETICA', 'requiere_seguimiento' => true, 'frecuencia_seguimiento_dias' => 90, 'descripcion' => 'Rechinamiento o apriete de dientes, especialmente durante el sueño.'],
+            ['nombre' => 'Disfunción de la ATM', 'codigo_cie10' => 'K07.6', 'categoria' => 'MUSCULOESQUELETICA', 'requiere_seguimiento' => true, 'frecuencia_seguimiento_dias' => 90, 'descripcion' => 'Trastorno de la Articulación Temporomandibular (dolor de mandíbula, chasquidos).'],
         ];
 
         foreach ($condiciones as $condicion) {

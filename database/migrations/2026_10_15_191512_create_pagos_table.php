@@ -31,15 +31,8 @@ return new class extends Migration
             // ============================================================
             // Snapshot del momento del pago
             // ============================================================
-            $table->foreignId('tasa_id')
-                  ->constrained('tasas')
-                  ->restrictOnDelete();
-
-            $table->foreignId('cambio_id')
-                  ->constrained('cambios')
-                  ->restrictOnDelete();
-
-            $table->decimal('tasa_momento', 12, 4);
+            $table->string('tasa', 12, 4);    
+            $table->decimal('cambio', 12, 4);
             $table->enum('moneda', ['dolar', 'euro', 'bs']);
 
             // ============================================================

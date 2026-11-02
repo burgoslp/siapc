@@ -22,7 +22,7 @@ class DashboardController extends Controller
         $inicioMes = Carbon::now()->startOfMonth();
 
         // ============================
-        // 1. KPIs PRINCIPALES (Separados por moneda)
+        // 1. KPIs PRINCIPALES
         // ============================
         
         // Citas de hoy
@@ -104,27 +104,25 @@ class DashboardController extends Controller
             $queryChart = Pago::where('estado', 'ACTIVO')->whereDate('created_at', $fecha);
             if ($esMedicoPuro) $queryChart->whereHas('cita', fn($q) => $q->where('medico_id', $user->medico->id));
             
+            // 👇 CORRECCIÓN: Usamos 'cambio' en lugar de 'tasa_momento'
             $chartData[] = round($queryChart->sum(DB::raw("
                 CASE 
                     WHEN moneda = 'bs' THEN monto 
-                    ELSE monto * COALESCE(tasa_momento, 1) 
+                    ELSE monto * COALESCE(cambio, 1) 
                 END
             ")), 2);
         }
 
-        // 1. Alertas de Gastos Fijos por vencer (próximos 7 días)
+        // 6. Alertas de Gastos Fijos por vencer (próximos 7 días)
         $alertasGastosFijos = collect();
         
-        // Solo mostramos esto al admin o al que pueda ver todo
         if (!$esMedicoPuro) {
             $hoy = \Carbon\Carbon::today();
             $enUnaSemana = $hoy->copy()->addDays(7);
 
-            // Buscamos las recurrencias activas
             $recurrencias = \App\Models\Recurrencia::where('activo', true)->get();
 
             foreach ($recurrencias as $rec) {
-                // Calculamos la fecha del próximo pago (usando la misma lógica del componente de recurrencias)
                 $proximoPago = $hoy->copy();
 
                 if ($rec->frecuencia === 'MENSUAL') {
@@ -157,7 +155,6 @@ class DashboardController extends Controller
                     }
                 }
 
-                // Si el próximo pago está en el rango (hoy hasta +7 días)
                 if ($proximoPago->between($hoy, $enUnaSemana)) {
                     $rec->fecha_proximo = $proximoPago;
                     $rec->dias_restantes = $hoy->diffInDays($proximoPago, false);

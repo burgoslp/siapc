@@ -69,7 +69,8 @@ class FacturacionController extends Controller
 
     public function cajaDetalle(Caja $caja)
     {
-        $caja->load(['abiertaPor', 'cerradaPor', 'pagos.paciente', 'pagos.tasa']);
+        // 👇 Quitamos 'pagos.tasa' de la carga de relaciones
+        $caja->load(['abiertaPor', 'cerradaPor', 'pagos.paciente']);
 
         return view('facturacion.portadas.detalle', compact('caja'));
     }

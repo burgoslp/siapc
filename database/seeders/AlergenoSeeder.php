@@ -55,6 +55,25 @@ class AlergenoSeeder extends Seeder
             ['nombre' => 'Picadura de avispa', 'categoria' => 'Insecto', 'descripcion' => 'Similar a la abeja, potencialmente grave.'],
             ['nombre' => 'Picadura de hormiga', 'categoria' => 'Insecto', 'descripcion' => 'Hormiga roja o de fuego.'],
             ['nombre' => 'Mosquito', 'categoria' => 'Insecto', 'descripcion' => 'Reacción local exagerada a la picadura.'],
+
+            // MEDICAMENTOS ESPECÍFICOS ODONTOLOGÍA
+            ['nombre' => 'Clindamicina', 'categoria' => 'Medicamento', 'descripcion' => 'Antibiótico alternativo en alérgicos a penicilina.'],
+            ['nombre' => 'Metronidazol', 'categoria' => 'Medicamento', 'descripcion' => 'Antibiótico usado en infecciones dentales.'],
+            ['nombre' => 'Lidocaína', 'categoria' => 'Medicamento', 'descripcion' => 'Anestésico local usado en odontología.'],
+            ['nombre' => 'Mepivacaína', 'categoria' => 'Medicamento', 'descripcion' => 'Anestésico local.'],
+            ['nombre' => 'Artacaína', 'categoria' => 'Medicamento', 'descripcion' => 'Anestésico local.'],
+            ['nombre' => 'Bupivacaína', 'categoria' => 'Medicamento', 'descripcion' => 'Anestésico local de larga duración.'],
+            ['nombre' => 'Paracetamol', 'categoria' => 'Medicamento', 'descripcion' => 'Analgésico común.'],
+            ['nombre' => 'Ketorolaco', 'categoria' => 'Medicamento', 'descripcion' => 'Analgésico fuerte usado post-operatorio.'],
+            ['nombre' => 'Dexametasona', 'categoria' => 'Medicamento', 'descripcion' => 'Antiinflamatorio usado en cirugías.'],
+
+            // MATERIALES DENTALES
+            ['nombre' => 'Metacrilato', 'categoria' => 'Material dental', 'descripcion' => 'Prótesis y adhesivos.'],
+            ['nombre' => 'Acrílico', 'categoria' => 'Material dental', 'descripcion' => 'Prótesis dentales y resinas.'],
+            ['nombre' => 'Eugenol', 'categoria' => 'Material dental', 'descripcion' => 'Cementos dentales.'],
+            ['nombre' => 'Resina compuesta', 'categoria' => 'Material dental', 'descripcion' => 'Empastes estéticos.'],
+            ['nombre' => 'Clorhexidina', 'categoria' => 'Material dental', 'descripcion' => 'Enjuague bucal antiséptico.'],
+            ['nombre' => 'Menta / Mentol', 'categoria' => 'Material dental', 'descripcion' => 'Saborizante en pastas dentales y enjuagues.'],
         ];
 
         foreach ($alergenos as $alergeno) {

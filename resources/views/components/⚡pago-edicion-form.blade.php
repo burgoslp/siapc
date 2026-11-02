@@ -128,10 +128,10 @@ new class extends Component
 
         $datos = $this->validate($rules);
 
-        // Calcular el nuevo monto en Bs
+        // Calcular el nuevo monto en Bs usando el campo 'cambio' en lugar de 'tasa_momento'
         $nuevoMontoBs = match ($this->pago->moneda) {
             'bs'    => (float) $datos['monto'],
-            'dolar', 'euro' => round((float) $datos['monto'] * (float) $this->pago->tasa_momento, 2),
+            'dolar', 'euro' => round((float) $datos['monto'] * (float) $this->pago->cambio, 2),
             default => 0,
         };
 
@@ -244,7 +244,7 @@ new class extends Component
                             <div>
                                 <span class="text-gray-500 text-xs">Cita:</span>
                                 <div class="font-medium text-teal-700">
-                                    #{{ $pago->cita?->id }} · {{ $pago->cita?->fecha->format('d/m/Y') }}
+                                    #{{ $pago->cita?->numero_cita ?? $pago->cita?->id }} · {{ $pago->cita?->fecha->format('d/m/Y') }}
                                 </div>
                             </div>
                             <div>
@@ -256,10 +256,10 @@ new class extends Component
                             <div>
                                 <span class="text-gray-500 text-xs">Tasa aplicada:</span>
                                 <div class="font-medium text-gray-800">
-                                    {{ number_format($pago->tasa_momento, 2) }}
-                                    @if ($pago->tasa)
-                                        ({{ $pago->tasa->etiqueta }})
-                                    @endif
+                                    {{ number_format($pago->cambio, 2) }}
+                                    <span class="text-xs {{ $pago->tasa === 'Preferencial' ? 'text-amber-600 font-bold' : 'text-gray-500' }}">
+                                        ({{ $pago->tasa }})
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -299,7 +299,7 @@ new class extends Component
                             </select>
                         </div>
 
-                        {{-- 👇 CAMPOS SEGÚN FORMA DE PAGO 👇 --}}
+                        {{-- CAMPOS SEGÚN FORMA DE PAGO --}}
                         @if ($forma_pago === 'EFECTIVO')
                             <p class="sm:col-span-2 text-[10px] text-teal-600 italic mt-2">
                                 * El dinero ingresará automáticamente a la Caja Chica ({{ strtoupper($pago->moneda) }}).

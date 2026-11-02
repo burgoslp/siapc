@@ -11,19 +11,19 @@ class RoleSeeder extends Seeder
     {
         $roles = [
             [
-                'nombre' => 'admin',
+                'nombre' => 'Admin',
                 'etiqueta' => 'Administrador',
                 'descripcion' => 'Acceso total al sistema, gestión de usuarios y configuración.',
             ],
             [
                 'nombre' => 'medico',
                 'etiqueta' => 'Médico',
-                'descripcion' => 'Acceso a sus citas, consultas y todos los pacientes.',
+                'descripcion' => 'Acceso a sus citas, consultas, todos los pacientes y facturación.',
             ],
             [
                 'nombre' => 'recepcion',
                 'etiqueta' => 'Recepción',
-                'descripcion' => 'Agendamiento de citas y gestión de pacientes.',
+                'descripcion' => 'Agendamiento de citas, gestión de pacientes y facturación.',
             ],
         ];
 

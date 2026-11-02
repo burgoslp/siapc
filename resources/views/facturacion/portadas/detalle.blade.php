@@ -116,36 +116,22 @@
                         'BINANCE'         => $caja->total_binance,
                         'OTRO'            => $caja->total_otros,
                     ];
-
-                    // 👇 Consultamos el desglose del efectivo en la BD
-                    $efectivoUsdDetalle = $caja->pagos()
-                        ->where('estado', 'ACTIVO')
-                        ->where('forma_pago', 'EFECTIVO')
-                        ->where('moneda', 'dolar')
-                        ->sum('monto');
-                        
-                    $efectivoBsDetalle = $caja->pagos()
-                        ->where('estado', 'ACTIVO')
-                        ->where('forma_pago', 'EFECTIVO')
-                        ->where('moneda', 'bs')
-                        ->sum('monto');
-
                 } else {
-                    // Para cajas abiertas usamos la misma lógica en vivo
                     $totales = $caja->totalesPorFormaPago();
-                    
-                    $efectivoUsdDetalle = $caja->pagos()
-                        ->where('estado', 'ACTIVO')
-                        ->where('forma_pago', 'EFECTIVO')
-                        ->where('moneda', 'dolar')
-                        ->sum('monto');
-                        
-                    $efectivoBsDetalle = $caja->pagos()
-                        ->where('estado', 'ACTIVO')
-                        ->where('forma_pago', 'EFECTIVO')
-                        ->where('moneda', 'bs')
-                        ->sum('monto');
                 }
+
+                // 👇 Consultamos el desglose del efectivo en la BD (Aplica para cerradas y abiertas)
+                $efectivoUsdDetalle = $caja->pagos()
+                    ->where('estado', 'ACTIVO')
+                    ->where('forma_pago', 'EFECTIVO')
+                    ->where('moneda', 'dolar')
+                    ->sum('monto');
+                    
+                $efectivoBsDetalle = $caja->pagos()
+                    ->where('estado', 'ACTIVO')
+                    ->where('forma_pago', 'EFECTIVO')
+                    ->where('moneda', 'bs')
+                    ->sum('monto');
             @endphp
 
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -270,20 +256,21 @@
                                 <td class="px-4 py-3 text-xs font-mono text-gray-600">
                                     {{ $pago->moneda_etiqueta }}
                                 </td>
+                                
+                                {{-- 👇 NUEVA LÓGICA DE LA TASA 👇 --}}
                                 <td class="px-4 py-3 text-right text-xs">
-                                    @if ($pago->tasa_momento)
+                                    @if ($pago->cambio)
                                         <div class="font-semibold text-gray-700">
-                                            {{ number_format($pago->tasa_momento, 2) }}
+                                            {{ number_format($pago->cambio, 2) }}
                                         </div>
-                                        @if ($pago->tasa)
-                                            <div class="text-[10px] text-gray-500">
-                                                {{ $pago->tasa->etiqueta }}
-                                            </div>
-                                        @endif
+                                        <div class="text-[10px] {{ $pago->tasa === 'Preferencial' ? 'text-amber-600 font-bold' : 'text-gray-500' }}">
+                                            {{ $pago->tasa }}
+                                        </div>
                                     @else
                                         <span class="text-gray-400">—</span>
                                     @endif
                                 </td>
+
                                 <td class="px-4 py-3 text-right font-semibold {{ $pago->esta_anulado ? 'text-gray-400 line-through' : 'text-gray-800' }}">
                                     {{ $pago->monto_formateado }}
                                 </td>
@@ -319,7 +306,5 @@
             </div>
         @endif
     </div>
-    
-
 </div>
 @endsection

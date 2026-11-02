@@ -51,8 +51,8 @@ new class extends Component
             $ingresosDia = 0;
             foreach ($pagos as $p) {
                 if ($p->created_at->format('Y-m-d') === $dia) {
-                    // Regla de conversión para PAGOS en la gráfica
-                    $tasa = (float) ($p->tasa_momento ?: 1);
+                    // Regla de conversión para PAGOS en la gráfica usando el nuevo campo 'cambio'
+                    $tasa = (float) ($p->cambio ?: 1);
                     if ($this->moneda_visual === 'bs') {
                         $ingresosDia += $p->moneda === 'bs' ? (float) $p->monto : (float) $p->monto * $tasa;
                     } else {
@@ -113,8 +113,8 @@ new class extends Component
         $desgloseMedicos = [];
 
         foreach ($pagos as $p) {
-            // Regla de conversión para PAGOS en los KPIs
-            $tasa = (float) ($p->tasa_momento ?: 1);
+            // Regla de conversión para PAGOS en los KPIs usando el nuevo campo 'cambio'
+            $tasa = (float) ($p->cambio ?: 1);
             if ($this->moneda_visual === 'bs') {
                 $montoFinal = $p->moneda === 'bs' ? (float) $p->monto : (float) $p->monto * $tasa;
             } else {
