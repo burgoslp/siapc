@@ -96,6 +96,10 @@ new class extends Component
                    {{ request()->routeIs('pacientes.*') ? 'text-white bg-siapc-blue/20 font-semibold' : 'text-slate-400 hover:text-white hover:bg-white/5' }}">
                     Pacientes
                 </a>
+                <a href="{{ route('agendas.index') }}"
+                        class="block px-3 py-2 text-sm font-medium rounded-lg transition-colors {{ request()->routeIs('agendas.*') ? 'text-white bg-siapc-blue/20 font-semibold' : 'text-slate-400 hover:text-white hover:bg-white/5' }}">
+                            Agendas
+                </a>
                 <a href="{{ route('citas.index') }}"
                    class="flex items-center justify-between px-3 py-2 text-sm font-medium rounded-lg transition-colors 
                    {{ request()->routeIs('citas.*') ? 'text-white bg-siapc-blue/20 font-semibold' : 'text-slate-400 hover:text-white hover:bg-white/5' }}">

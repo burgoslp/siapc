@@ -1,19 +1,14 @@
-<!DOCTYPE html>
-<html lang="es" class="h-full bg-slate-100">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Agendar Cita - SIAPC</title>
-    <link rel="icon" type="image/png" href="{{ asset('images/favicon/favicon.png') }}">
-    
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-    @livewireStyles
-</head>
-<body class="h-full antialiased text-slate-800">
-    <div class="min-h-screen py-6 px-4">
-        <livewire:agenda-publica :token="request()->route('token')" />
+@extends('layouts.base')
+
+@section('title', 'Agendas Compartidas')
+
+@section('contenido')
+<div class="container mx-auto px-4 py-6">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-800">Agendas de Auto-Agendamiento</h1>
+        <p class="text-sm text-gray-500 mt-1">Gestiona los enlaces que envías a tus pacientes.</p>
     </div>
-    
-    @livewireScripts
-</body>
-</html>
+
+    <livewire:agendas-table />
+</div>
+@endsection

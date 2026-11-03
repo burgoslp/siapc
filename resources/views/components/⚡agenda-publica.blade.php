@@ -28,6 +28,7 @@ new class extends Component
     public $telefono = '';
     public $fecha_nacimiento = '';
     public $pacienteExistente = null;
+    public $empresa = [];
 
     public function mount($token)
     {
@@ -42,9 +43,13 @@ new class extends Component
         }
 
         $this->medico = $this->agenda->medico;
+
+        $empresaDb = \App\Models\Empresa::all();
+        foreach ($empresaDb as $e) {
+            $this->empresa[$e->clave] = $e->valor;
+        }
     }
 
-    // Validar paciente y avanzar al paso de fecha/hora
     public function seleccionarServicio($tarifaId)
     {
         $this->tarifaSeleccionada = $this->agenda->tarifas->find($tarifaId);
@@ -68,6 +73,24 @@ new class extends Component
             $this->addError('hora', 'Por favor selecciona una hora.');
             return;
         }
+
+        // 🕵️‍♂️ PRE-CHECK: Validar que el slot no haya sido tomado mientras el paciente elegía
+        $fechaHora = Carbon::parse($this->fechaSeleccionada . ' ' . $this->horaSeleccionada);
+        $duracion = $this->tarifaSeleccionada->duracion_minutos ?? 30;
+
+        $slotTomado = Cita::where('medico_id', $this->medico->id)
+            ->whereNotIn('estado', ['CANCELADA', 'NO_ASISTIO'])
+            ->where('fecha', '<', $fechaHora->copy()->addMinutes($duracion))
+            ->whereRaw('DATE_ADD(fecha, INTERVAL ' . (int) $duracion . ' MINUTE) > ?', [$fechaHora])
+            ->exists();
+
+        if ($slotTomado) {
+            $this->horaSeleccionada = null; // Limpiamos la hora seleccionada
+            session()->flash('slot_error', '¡Ups! Alguien te ha ganado, intenta en otro horario.');
+            return; // Nos quedamos en el paso 2
+        }
+
+        // Si todo está bien, avanzamos al paso 3
         $this->paso = '3';
     }
 
@@ -78,32 +101,26 @@ new class extends Component
             'email' => 'required|email|max:255',
         ]);
 
-        // Buscamos si la cédula ya existe en el sistema
         $paciente = Paciente::where('ci', $this->ci)->first();
 
         if ($paciente) {
-            // Si el paciente existe, validamos que el correo coincida
             if ($paciente->email !== $this->email) {
                 $this->addError('email', 'El correo no coincide con el registrado para esta cédula. Verifica o usa otro.');
                 return;
             }
-            // Si todo coincide, le cargamos los datos y confirmamos la cita
             $this->pacienteExistente = $paciente;
             $this->nombre = $paciente->nombre;
             $this->apellido = $paciente->apellido;
             $this->confirmarCita();
         } else {
-            // Si NO existe, no confirmamos nada. El HTML se encargará de mostrar el formulario completo.
-            $this->pacienteExistente = null; 
-            
-            //Lanzamos un mensaje para avisar que es nuevo
+            $this->pacienteExistente = null;
             session()->flash('info_nuevo_paciente', 'No encontramos tu cédula. Por favor, completa tus datos para registrarte.');
         }
     }
 
     public function confirmarCita()
     {
-        // Validamos los campos extra si es un paciente nuevo
+        // 1. Validación previa (fuera de transacción) de datos del paciente nuevo
         if (!$this->pacienteExistente) {
             $this->validate([
                 'nombre' => 'required|string|max:255',
@@ -113,38 +130,91 @@ new class extends Component
             ]);
         }
 
-        \DB::transaction(function () {
-            if ($this->pacienteExistente) {
-                $paciente = $this->pacienteExistente;
-            } else {
-                // Creamos el paciente con todos los datos
-                $paciente = Paciente::create([
-                    'nombre' => $this->nombre,
-                    'apellido' => $this->apellido,
-                    'ci' => $this->ci,
-                    'email' => $this->email,
-                    'telefono' => $this->telefono,
-                    'fecha_nacimiento' => $this->fecha_nacimiento, 
-                    'estado' => 'activo',
+        // 2. Verificación rápida antes de la transacción (para UX)
+        if (!$this->agenda->activo || $this->agenda->fecha_expiracion->isPast()) {
+            $this->addError('general', 'Este enlace de agendamiento ya no está disponible.');
+            return;
+        }
+
+        $slotTomado = false;
+        $agendaExpirada = false;
+
+        try {
+            \DB::transaction(function () use (&$slotTomado, &$agendaExpirada) {
+
+                // 🔒 Bloqueamos la agenda para evitar race conditions
+                $agendaFresh = AgendaCompartida::where('id', $this->agenda->id)
+                    ->lockForUpdate()
+                    ->first();
+
+                // 3. Re-validación de activo / expiración dentro de la transacción
+                if (!$agendaFresh || !$agendaFresh->activo || $agendaFresh->fecha_expiracion->isPast()) {
+                    $agendaExpirada = true;
+                    throw new \RuntimeException('agenda_expirada');
+                }
+
+                // 4. Re-validación de que el slot siga libre (bloqueo de la cita)
+                $fechaHora = Carbon::parse($this->fechaSeleccionada . ' ' . $this->horaSeleccionada);
+                $duracion = $this->tarifaSeleccionada->duracion_minutos ?? 30;
+
+                $conflicto = Cita::where('medico_id', $this->medico->id)
+                    ->whereNotIn('estado', ['CANCELADA', 'NO_ASISTIO'])
+                    ->where('fecha', '<', $fechaHora->copy()->addMinutes($duracion))
+                    ->whereRaw('DATE_ADD(fecha, INTERVAL ' . (int) $duracion . ' MINUTE) > ?', [$fechaHora])
+                    ->lockForUpdate()
+                    ->exists();
+
+                if ($conflicto) {
+                    $slotTomado = true;
+                    throw new \RuntimeException('slot_tomado');
+                }
+
+                // 5. Crear / obtener paciente
+                if ($this->pacienteExistente) {
+                    $paciente = $this->pacienteExistente;
+                } else {
+                    $paciente = Paciente::create([
+                        'nombre' => $this->nombre,
+                        'apellido' => $this->apellido,
+                        'ci' => $this->ci,
+                        'email' => $this->email,
+                        'telefono' => $this->telefono,
+                        'fecha_nacimiento' => $this->fecha_nacimiento,
+                        'estado' => 'activo',
+                    ]);
+                }
+
+                // 6. Crear la cita
+                Cita::create([
+                    'paciente_id' => $paciente->id,
+                    'medico_id' => $this->medico->id,
+                    'agenda_compartida_id' => $this->agenda->id,
+                    'fecha' => $fechaHora,
+                    'motivo' => $this->tarifaSeleccionada->nombre,
+                    'estado' => 'PENDIENTE',
+                    'tarifa_id' => $this->tarifaSeleccionada->id,
+                    'precio' => $this->tarifaSeleccionada->precio_usd,
+                    'total' => $this->tarifaSeleccionada->precio_usd,
+                    'estado_pago' => 'PENDIENTE',
                 ]);
+            });
+        } catch (\RuntimeException $e) {
+
+            if ($e->getMessage() === 'slot_tomado') {
+                // 🔁 Volver al Paso 2, limpiar hora y flash
+                $this->horaSeleccionada = null;
+                $this->paso = '2';
+                session()->flash('slot_error', '¡Ups! Alguien te ha ganado, intenta en otro horario.');
+                return;
             }
 
-            // 2. Calcular la fecha y hora final
-            $fechaHora = Carbon::parse($this->fechaSeleccionada . ' ' . $this->horaSeleccionada);
+            if ($e->getMessage() === 'agenda_expirada') {
+                $this->addError('general', 'Este enlace de agendamiento ya no está disponible.');
+                return;
+            }
 
-            // 3. Crear la cita
-            Cita::create([
-                'paciente_id' => $paciente->id,
-                'medico_id' => $this->medico->id,
-                'fecha' => $fechaHora,
-                'motivo' => $this->tarifaSeleccionada->nombre,
-                'estado' => 'PENDIENTE', // Entra como pendiente para que recepción confirme
-                'tarifa_id' => $this->tarifaSeleccionada->id,
-                'precio' => $this->tarifaSeleccionada->precio_usd,
-                'total' => $this->tarifaSeleccionada->precio_usd,
-                'estado_pago' => 'PENDIENTE',
-            ]);
-        });
+            throw $e;
+        }
 
         $this->paso = '4';
     }
@@ -158,7 +228,6 @@ new class extends Component
     {
         if (!$this->fechaSeleccionada) return [];
 
-        // 👇 CORRECCIÓN: Usamos filter para comparar la fecha formateada como string
         $disponibilidad = $this->agenda->disponibilidades
             ->filter(fn($d) => $d->fecha->format('Y-m-d') === $this->fechaSeleccionada)
             ->first();
@@ -167,10 +236,9 @@ new class extends Component
 
         $inicio = Carbon::parse($this->fechaSeleccionada . ' ' . $disponibilidad->hora_inicio);
         $fin = Carbon::parse($this->fechaSeleccionada . ' ' . $disponibilidad->hora_fin);
-        
+
         $duracion = $this->tarifaSeleccionada->duracion_minutos ?? 30;
 
-        // Obtener citas ya agendadas para ese médico en esa fecha
         $citasOcupadas = Cita::where('medico_id', $this->medico->id)
             ->whereDate('fecha', $this->fechaSeleccionada)
             ->whereNotIn('estado', ['CANCELADA', 'NO_ASISTIO'])
@@ -196,21 +264,40 @@ new class extends Component
 
 <div class="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl overflow-hidden mt-10 mb-10 flex flex-col md:flex-row">
     
-    {{-- Sidebar: Info del Doctor --}}
+    {{-- Sidebar: Info del Doctor y Clínica --}}
     <div class="bg-slate-50 p-8 md:w-1/3 border-r border-slate-100 flex flex-col items-center text-center">
-        <img src="{{ asset('images/logo/logo2.png') }}" alt="Logo" class="w-16 h-16 rounded-2xl shadow-sm mb-4">
-        <h2 class="text-lg font-bold text-slate-800">Cita con</h2>
-        <h3 class="text-xl font-bold text-siapc-blue mt-1">Dr(a). {{ $medico->nombre }} {{ $medico->apellido }}</h3>
-        <p class="text-xs text-slate-500 mt-1">{{ $medico->especialidades->first()?->nombre }}</p>
         
-        <div class="mt-6 text-left w-full space-y-3">
+        {{-- Logo de la Clínica (si lo tiene) --}}
+        @if(!empty($this->empresa['logo']) && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->empresa['logo']))
+            <img src="{{ \Illuminate\Support\Facades\Storage::url($this->empresa['logo']) }}" alt="Logo Clínica" class="w-20 h-20 object-contain rounded-2xl shadow-sm mb-4 bg-white p-2">
+        @else
+            <img src="{{ asset('images/logo/logo2.png') }}" alt="Logo" class="w-16 h-16 rounded-2xl shadow-sm mb-4">
+        @endif
+
+        <h2 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Cita con</h2>
+        <h3 class="text-xl font-bold text-siapc-blue mt-1">Dr(a). {{ $this->medico->nombre }} {{ $this->medico->apellido }}</h3>
+        <p class="text-xs text-slate-500 mt-1">{{ $this->medico->especialidades->first()?->nombre }}</p>
+        
+        <div class="mt-6 text-left w-full space-y-4 border-t border-slate-200 pt-4">
+            
+            {{-- Nombre de la Clínica --}}
             <div class="flex items-start text-xs text-slate-600">
-                <svg class="w-4 h-4 mr-2 text-siapc-blue shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                Consultorio Dental (Dirección de la Clínica)
+                <svg class="w-4 h-4 mr-2 text-siapc-blue shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+                <span class="font-semibold">{{ $this->empresa['nombre_clinica'] ?? 'Consultorio Dental' }}</span>
             </div>
+
+            {{-- Dirección --}}
+            @if(!empty($this->empresa['direccion']))
             <div class="flex items-start text-xs text-slate-600">
-                <svg class="w-4 h-4 mr-2 text-siapc-blue shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                Hora del proveedor: America/Caracas
+                <svg class="w-4 h-4 mr-2 text-siapc-blue shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span>{{ $this->empresa['direccion'] }}</span>
+            </div>
+            @endif
+
+            {{-- Zona Horaria --}}
+            <div class="flex items-start text-xs text-slate-600">
+                <svg class="w-4 h-4 mr-2 text-siapc-blue shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span>Hora del proveedor: America/Caracas</span>
             </div>
         </div>
     </div>
@@ -248,6 +335,16 @@ new class extends Component
                 </button>
                 <h2 class="text-2xl font-bold text-slate-800 mb-2">2. Elige una fecha y hora</h2>
                 <p class="text-sm text-slate-500 mb-6">Servicio: <span class="font-semibold text-siapc-blue">{{ $tarifaSeleccionada->nombre }}</span></p>
+
+                {{-- 👇 ALERTA DE SLOT TOMADO (NUEVO) 👇 --}}
+                @if(session('slot_error'))
+                    <div class="mb-6 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2 animate-pulse">
+                        <svg class="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <p class="text-sm text-amber-800 font-medium">{{ session('slot_error') }}</p>
+                    </div>
+                @endif
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {{-- Fechas --}}
@@ -288,11 +385,20 @@ new class extends Component
             </div>
             
             <div class="mt-8 pt-4 border-t border-slate-100 flex justify-end">
-                <button wire:click="continuarADatos" class="px-6 py-2 bg-siapc-blue text-white rounded-lg text-sm font-semibold hover:bg-siapc-indigo transition">
-                    Continuar con estos datos
-                </button>
+                {{-- 👇 BOTÓN DINÁMICO CON MENSAJE DE ERROR 👇 --}}
+                @if(session('slot_error'))
+                    <button wire:click="$refresh" class="px-6 py-2 bg-siapc-blue text-white rounded-lg text-sm font-semibold hover:bg-siapc-indigo transition flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Ver otros horarios
+                    </button>
+                @else
+                    <button wire:click="continuarADatos" class="px-6 py-2 bg-siapc-blue text-white rounded-lg text-sm font-semibold hover:bg-siapc-indigo transition">
+                        Continuar con estos datos
+                    </button>
+                @endif
             </div>
         @endif
+
 
         {{-- PASO 3: DATOS DEL PACIENTE --}}
         @if($paso === '3')

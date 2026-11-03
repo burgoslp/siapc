@@ -50,6 +50,11 @@ class Cita extends Model
         return $this->hasMany(Pago::class, 'cita_id');
     }
 
+    public function agendaCompartida(): BelongsTo
+    {
+        return $this->belongsTo(AgendaCompartida::class, 'agenda_compartida_id');
+    }
+
     protected static function booted()
     {
         static::creating(function ($cita) {

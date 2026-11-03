@@ -40,6 +40,9 @@ Route::middleware(['auth', 'role:admin,recepcion,medico'])->group(function () {
     Route::get('facturacion/pagos', [FacturacionController::class, 'pagos'])->name('facturacion.pagos');
     Route::get('facturacion/cajas', [FacturacionController::class, 'cajas'])->name('facturacion.cajas');
     Route::get('facturacion/cajas/{caja}', [FacturacionController::class, 'cajaDetalle'])->name('facturacion.cajas.detalle');
+
+    // Agendas Compartidas
+    Route::get('agendas', [\App\Http\Controllers\AgendaController::class, 'index'])->name('agendas.index');
 });
 
 
@@ -97,7 +100,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
 // Ruta pública para agendar
 Route::get('/agendar/{token}', function ($token) {
-    return view('agenda.index', compact('token'));
+    return view('agenda.publica', compact('token'));
 })->name('public.agenda');
 
 /*
