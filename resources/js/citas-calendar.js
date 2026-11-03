@@ -13,9 +13,7 @@ export function registrarCalendarioCitas() {
             estado: '',
 
             init() {
-                // 👇 ESCUCHAMOS LOS EVENTOS QUE VIENEN DE LIVEWIRE
                 Livewire.on('eventos-cargados', (data) => {
-                    // Livewire a veces envía un array de argumentos, validamos
                     const eventos = Array.isArray(data) ? data[0].eventos : data.eventos;
                     this.actualizarEventos(eventos);
                 });
@@ -31,17 +29,26 @@ export function registrarCalendarioCitas() {
                     const el = document.getElementById('fullcalendar-citas');
                     if (!el) return;
 
+                    const isMobile = window.innerWidth < 768;
                     const self = this;
+
                     this.calendar = new Calendar(el, {
                         plugins: [dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin],
                         locale: esLocale,
                         initialView: 'dayGridMonth',
                         height: 'auto',
-                        headerToolbar: {
+                        
+                        // 👇 TOOLBAR RESPONSIVO
+                        headerToolbar: isMobile ? {
+                            left: 'prev,next',
+                            center: 'title',
+                            right: 'today'
+                        } : {
                             left: 'prev,next today',
                             center: 'title',
                             right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek'
                         },
+                        
                         buttonText: {
                             today: 'Hoy', month: 'Mes', week: 'Semana', day: 'Día', list: 'Lista'
                         },
@@ -51,10 +58,20 @@ export function registrarCalendarioCitas() {
                         nowIndicator: true,
                         editable: false,
                         selectable: true,
-                        dayMaxEvents: 3,
+                        dayMaxEvents: isMobile ? 3 : 4,
+                        
+                        // 👇 EVENTOS MINIMALISTAS EN MÓVIL (SOLO PUNTO)
+                        eventContent: function(arg) {
+                            if (isMobile) {
+                                return {
+                                    html: `<div style="width: 8px; height: 8px; border-radius: 50%; background-color: ${arg.event.backgroundColor}; margin: 2px auto;"></div>`
+                                };
+                            }
+                            // En desktop, comportamiento por defecto
+                            return true; 
+                        },
 
                         datesSet: function (info) {
-                            // 👇 Limpiamos las fechas para que la consulta SQL funcione (solo YYYY-MM-DD)
                             const start = info.startStr.substring(0, 10);
                             const end = info.endStr.substring(0, 10);
                             self.pedirEventos(start, end);
@@ -63,10 +80,29 @@ export function registrarCalendarioCitas() {
                             info.jsEvent.preventDefault();
                             Livewire.dispatch('editar-cita', { id: parseInt(info.event.id) });
                         },
+                        
+                        // 👇 LÓGICA DE CLICK EN EL DÍA
                         dateClick: function (info) {
                             const fecha = info.dateStr.substring(0, 10);
                             const hora = info.dateStr.includes('T') ? info.dateStr.split('T')[1].substring(0, 5) : '09:00';
-                            Livewire.dispatch('nueva-cita-en', { fecha: fecha, hora: hora });
+                            
+                            if (isMobile) {
+                                // Verificar si hay eventos en este día
+                                const eventosDelDia = self.calendar.getEvents().filter(ev => {
+                                    return ev.startStr.substring(0, 10) === fecha;
+                                });
+
+                                if (eventosDelDia.length > 0) {
+                                    // Si hay eventos, expandir a vista Día
+                                    self.calendar.changeView('timeGridDay', info.dateStr);
+                                } else {
+                                    // Si no hay eventos, abrir modal de nueva cita
+                                    Livewire.dispatch('nueva-cita-en', { fecha: fecha, hora: hora });
+                                }
+                            } else {
+                                // En desktop, comportamiento normal
+                                Livewire.dispatch('nueva-cita-en', { fecha: fecha, hora: hora });
+                            }
                         },
                         select: function (info) {
                             const fecha = info.startStr.substring(0, 10);

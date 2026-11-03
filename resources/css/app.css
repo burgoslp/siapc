@@ -10,3 +10,53 @@
     --color-siapc-indigo: #2424A7;
     --color-siapc-navy: #022F6A;
 }
+
+/* =========================================
+   FULLCALENDAR RESPONSIVO MÓVIL
+   ========================================= */
+@media (max-width: 767px) {
+    /* Título del mes más pequeño */
+    .fc .fc-toolbar-title {
+        font-size: 1.1rem !important;
+        font-weight: 700;
+        margin: 0;
+    }
+
+    /* Botones del toolbar más compactos */
+    .fc .fc-button {
+        padding: 0.3rem 0.5rem !important;
+        font-size: 0.7rem !important;
+    }
+
+    /* Días de la semana (Lun, Mar, Mié) */
+    .fc .fc-col-header-cell-cushion {
+        font-size: 0.65rem !important;
+        padding: 4px 2px !important;
+        text-transform: uppercase;
+    }
+
+    /* Números de los días */
+    .fc .fc-daygrid-day-number {
+        font-size: 0.75rem !important;
+        padding: 2px 4px !important;
+    }
+
+    /* Celdas del día más altas para que quepan los puntos */
+    .fc .fc-daygrid-day-frame {
+        min-height: 50px !important;
+    }
+
+    /* Ocultar los "+X más" en móvil si hay muchos eventos */
+    .fc .fc-daygrid-more-link {
+        font-size: 0.6rem !important;
+        font-weight: 600;
+    }
+
+    /* Contenedor del evento con punto (le quitamos fondo y borde) */
+    .fc-daygrid-event {
+        margin-top: 2px !important;
+        margin-bottom: 2px !important;
+        border: none !important;
+        background: transparent !important;
+    }
+}
