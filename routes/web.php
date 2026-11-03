@@ -95,6 +95,11 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
 });
 
+// Ruta pública para agendar
+Route::get('/agendar/{token}', function ($token) {
+    return view('agenda.index', compact('token'));
+})->name('public.agenda');
+
 /*
 |--------------------------------------------------------------------------
 | Rutas de autenticación (Breeze)

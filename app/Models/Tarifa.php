@@ -17,6 +17,7 @@ class Tarifa extends Model
     protected $casts = [
         'precio_usd' => 'decimal:2',
         'activo' => 'boolean',
+        'duracion_minutos' => 'integer',
     ];
 
     // ---------- Relaciones ----------
