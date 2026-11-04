@@ -47,7 +47,7 @@
                 </button>
             </div>
 
-            {{-- Fila 2: Crear Enlace --}}
+            {{-- Fila 2: Crear Enlace--}}
             <button type="button"
                     onclick="Livewire.dispatch('abrir-agenda-form')"
                     class="w-full lg:w-auto justify-center px-4 py-2 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg text-sm font-medium transition shadow-sm inline-flex items-center">

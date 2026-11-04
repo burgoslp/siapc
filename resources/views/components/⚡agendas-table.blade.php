@@ -13,6 +13,32 @@ new class extends Component
     #[On('agenda-actualizada')]
     public function refrescar(): void {}
 
+    public function desactivar(int $agendaId): void
+    {
+        $agenda = AgendaCompartida::find($agendaId);
+        
+        if ($agenda) {
+            $agenda->update(['activo' => false]);
+            session()->flash('success', 'El enlace ha sido desactivado y ya no funcionará.');
+        }
+    }
+
+    public function activar(int $agendaId): void
+    {
+        $agenda = AgendaCompartida::find($agendaId);
+        
+        if ($agenda) {
+            // Si la fecha de expiración ya pasó, no permitimos reactivar sin cambiar la fecha
+            if ($agenda->fecha_expiracion->isPast()) {
+                session()->flash('error', 'No se puede reactivar porque ya expiró. Edita la fecha primero.');
+                return;
+            }
+
+            $agenda->update(['activo' => true]);
+            session()->flash('success', 'El enlace ha sido reactivado.');
+        }
+    }
+
     public function with(): array
     {
         $user = auth()->user();
@@ -102,13 +128,36 @@ new class extends Component
                                             class="px-2 py-1.5 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition inline-flex items-center mr-1">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                                     </button>
-                                    <a href="{{ $enlace }}" target="_blank" 
-                                       class="px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 transition inline-flex items-center">
+                                    <a href="{{ $enlace }}" target="_blank" class="px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 transition inline-flex items-center mr-1">
                                         <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                         Ver
                                     </a>
+                                    
+                                    {{-- 👇 NUEVO BOTÓN DE DESACTIVAR 👇 --}}
+                                    <button wire:click="desactivar({{ $agenda->id }})"
+                                            wire:confirm="¿Estás seguro de desactivar este enlace? Los pacientes ya no podrán agendar citas con él."
+                                            title="Desactivar enlace"
+                                            class="px-2 py-1.5 text-rose-600 bg-rose-50 rounded hover:bg-rose-100 transition inline-flex items-center">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    </button>
+
+                                @elseif($estaExpirado)
+                                    <span class="text-xs text-amber-600 font-medium italic mr-2">Expirado</span>
+                                    <button wire:click="$dispatch('editar-agenda', { agendaId: {{ $agenda->id }} })"
+                                            title="Extender fecha"
+                                            class="px-2 py-1.5 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition inline-flex items-center">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
                                 @else
-                                    <span class="text-xs text-gray-400 italic">No disponible</span>
+                                    {{-- Si está inactiva (desactivada manualmente) --}}
+                                    <span class="text-xs text-gray-400 italic mr-2">Desactivada</span>
+                                    <button wire:click="activar({{ $agenda->id }})"
+                                            wire:confirm="¿Reactivar este enlace para que los pacientes puedan agendar?"
+                                            title="Reactivar enlace"
+                                            class="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded text-xs font-semibold hover:bg-emerald-200 transition inline-flex items-center">
+                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        Reactivar
+                                    </button>
                                 @endif
                             </td>
                         </tr>
