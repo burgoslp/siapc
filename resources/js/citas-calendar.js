@@ -62,12 +62,13 @@ export function registrarCalendarioCitas() {
                         
                         // 👇 EVENTOS MINIMALISTAS EN MÓVIL (SOLO PUNTO)
                         eventContent: function(arg) {
-                            if (isMobile) {
+                            // Solo mostramos el punto si estamos en móvil Y estamos en la vista de Mes
+                            if (isMobile && arg.view.type === 'dayGridMonth') {
                                 return {
-                                    html: `<div style="width: 8px; height: 8px; border-radius: 50%; background-color: ${arg.event.backgroundColor}; margin: 2px auto;"></div>`
+                                    html: `<div style="width: 10px; height: 10px; border-radius: 50%; background-color: ${arg.event.backgroundColor}; margin: 2px auto;"></div>`
                                 };
                             }
-                            // En desktop, comportamiento por defecto
+                            // En desktop o en la vista de Día, mostramos el texto normal
                             return true; 
                         },
 
