@@ -19,19 +19,30 @@ new class extends Component
     public $logo_clinica = null;
     public $empresa = [];
 
+    // Propiedad para controlar qué fila está expandida
+    public $agendaExpandida = null;
+
+    public function toggleExpandir(int $id): void
+    {
+        if ($this->agendaExpandida === $id) {
+            $this->agendaExpandida = null;
+        } else {
+            $this->agendaExpandida = $id;
+        }
+    }
+
     #[On('agenda-actualizada')]
     public function refrescar(): void {}
 
     public function mount() {
-    $empresaDb = \App\Models\Empresa::all();
-    foreach ($empresaDb as $e) {
-        $this->empresa[$e->clave] = $e->valor;
+        $empresaDb = \App\Models\Empresa::all();
+        foreach ($empresaDb as $e) {
+            $this->empresa[$e->clave] = $e->valor;
+        }
+        $this->logo_clinica = !empty($this->empresa['logo']) && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->empresa['logo'])
+            ? \Illuminate\Support\Facades\Storage::url($this->empresa['logo'])
+            : asset('images/logo/logo2.png');
     }
-    $this->logo_clinica = !empty($this->empresa['logo']) && \Illuminate\Support\Facades\Storage::disk('public')->exists($this->empresa['logo'])
-        ? \Illuminate\Support\Facades\Storage::url($this->empresa['logo'])
-        : asset('images/logo/logo2.png');
-    }
-
 
     public function compartirAgenda(int $agendaId): void
     {
@@ -87,17 +98,17 @@ new class extends Component
     public function with(): array
     {
         $user = auth()->user();
-        $query = AgendaCompartida::with(['medico', 'creador'])->orderByDesc('created_at');
+        
+        $query = AgendaCompartida::with(['medico', 'creador', 'citas.paciente', 'citas.tarifa'])
+            ->withCount('citas')
+            ->orderByDesc('created_at');
 
-        // Si es médico y no puede ver todo, solo ve sus agendas
         if ($user->esMedico() && !$user->puedeVerTodo()) {
             $query->where('medico_id', $user->medico->id);
         }
 
-        $agendas = $query->paginate(10);
-
         return [
-            'agendas' => $agendas,
+            'agendas' => $query->paginate(10),
         ];
     }
 };
@@ -112,8 +123,10 @@ new class extends Component
                         <th class="px-6 py-4">Enlace</th>
                         <th class="px-6 py-4">Médico</th>
                         <th class="px-6 py-4">Rango de Fechas</th>
+                        <th class="px-6 py-4 text-center">Registros</th>
                         <th class="px-6 py-4">Estado</th>
                         <th class="px-6 py-4 text-right">Acciones</th>
+                        <th class="px-6 py-4 w-10"></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 text-sm">
@@ -122,12 +135,11 @@ new class extends Component
                             $enlace = route('public.agenda', ['token' => $agenda->token]);
                             $estaActivo = $agenda->activo;
                             $estaExpirado = $agenda->fecha_expiracion->isPast();
-                            
-                            // Solo puedes copiar si está activo y no expiró
                             $sePuedeUsar = $estaActivo && !$estaExpirado;
                         @endphp
-                        <tr wire:key="agenda-{{ $agenda->id }}" class="hover:bg-gray-50 transition">
-                            
+
+                        {{-- FILA PRINCIPAL --}}
+                        <tr wire:key="agenda-{{ $agenda->id }}" class="hover:bg-gray-50 transition border-b border-gray-100">
                             {{-- Enlace --}}
                             <td class="px-6 py-4">
                                 <div class="flex items-center gap-2">
@@ -149,6 +161,17 @@ new class extends Component
                                 Expira: <span class="font-semibold">{{ $agenda->fecha_expiracion->format('d/m/Y') }}</span>
                             </td>
 
+                            {{-- Registros (Contador) --}}
+                            <td class="px-6 py-4 text-center">
+                                @if($agenda->citas_count > 0)
+                                    <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-full text-xs font-bold bg-siapc-blue/10 text-siapc-blue">
+                                        {{ $agenda->citas_count }}
+                                    </span>
+                                @else
+                                    <span class="text-xs text-gray-400 font-medium">—</span>
+                                @endif
+                            </td>
+
                             {{-- Estado --}}
                             <td class="px-6 py-4">
                                 @if(!$estaActivo)
@@ -162,53 +185,115 @@ new class extends Component
 
                             {{-- Acciones --}}
                             <td class="px-6 py-4 text-right whitespace-nowrap">
-                                @if($sePuedeUsar)
-                                    <button wire:click="compartirAgenda({{ $agenda->id }})"
-                                            class="px-3 py-1.5 bg-siapc-blue text-white rounded text-xs font-semibold hover:bg-siapc-indigo transition inline-flex items-center mr-1">
-                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
-                                        Compartir
-                                    </button>
-                                    <button wire:click="$dispatch('editar-agenda', { agendaId: {{ $agenda->id }} })"
-                                            title="Editar enlace"
-                                            class="px-2 py-1.5 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition inline-flex items-center mr-1">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                    </button>
-                                    <a href="{{ $enlace }}" target="_blank" class="px-3 py-1.5 bg-slate-100 text-slate-700 rounded text-xs font-semibold hover:bg-slate-200 transition inline-flex items-center mr-1">
-                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                                        Ver
-                                    </a>
-                                    
-                                    {{-- 👇 NUEVO BOTÓN DE DESACTIVAR 👇 --}}
-                                    <button wire:click="desactivar({{ $agenda->id }})"
-                                            wire:confirm="¿Estás seguro de desactivar este enlace? Los pacientes ya no podrán agendar citas con él."
-                                            title="Desactivar enlace"
-                                            class="px-2 py-1.5 text-rose-600 bg-rose-50 rounded hover:bg-rose-100 transition inline-flex items-center">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                    </button>
+                                <div class="flex items-center justify-end gap-1.5">
+                                    @if($sePuedeUsar)
+                                        {{-- Botón Compartir --}}
+                                        <button wire:click="compartirAgenda({{ $agenda->id }})"
+                                                title="Compartir enlace"
+                                                class="p-2 text-siapc-blue bg-siapc-blue/10 rounded-lg hover:bg-siapc-blue hover:text-white transition-colors cursor-pointer">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+                                        </button>
 
-                                @elseif($estaExpirado)
-                                    <span class="text-xs text-amber-600 font-medium italic mr-2">Expirado</span>
-                                    <button wire:click="$dispatch('editar-agenda', { agendaId: {{ $agenda->id }} })"
-                                            title="Extender fecha"
-                                            class="px-2 py-1.5 text-blue-600 bg-blue-50 rounded hover:bg-blue-100 transition inline-flex items-center">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                    </button>
-                                @else
-                                    {{-- Si está inactiva (desactivada manualmente) --}}
-                                    <span class="text-xs text-gray-400 italic mr-2">Desactivada</span>
-                                    <button wire:click="activar({{ $agenda->id }})"
-                                            wire:confirm="¿Reactivar este enlace para que los pacientes puedan agendar?"
-                                            title="Reactivar enlace"
-                                            class="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded text-xs font-semibold hover:bg-emerald-200 transition inline-flex items-center">
-                                        <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                                        Reactivar
-                                    </button>
-                                @endif
+                                        {{-- Botón Editar --}}
+                                        <button wire:click="$dispatch('editar-agenda', { agendaId: {{ $agenda->id }} })"
+                                                title="Editar enlace"
+                                                class="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-600 hover:text-white transition-colors cursor-pointer">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        </button>
+
+                                        {{-- Botón Ver --}}
+                                        <a href="{{ $enlace }}" target="_blank" 
+                                           title="Ver agenda pública"
+                                           class="p-2 text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-700 hover:text-white transition-colors cursor-pointer">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                        </a>
+
+                                        {{-- Botón Desactivar --}}
+                                        <button wire:click="desactivar({{ $agenda->id }})"
+                                                wire:confirm="¿Estás seguro de desactivar este enlace? Los pacientes ya no podrán agendar citas con él."
+                                                title="Desactivar enlace"
+                                                class="p-2 text-rose-600 bg-rose-50 rounded-lg hover:bg-rose-600 hover:text-white transition-colors cursor-pointer">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+                                        </button>
+
+                                    @elseif($estaExpirado)
+                                        {{-- Botón Editar (para extender) --}}
+                                        <button wire:click="$dispatch('editar-agenda', { agendaId: {{ $agenda->id }} })"
+                                                title="Extender fecha"
+                                                class="p-2 text-amber-600 bg-amber-50 rounded-lg hover:bg-amber-600 hover:text-white transition-colors cursor-pointer">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        </button>
+                                        
+                                    @else
+                                        {{-- Botón Reactivar --}}
+                                        <button wire:click="activar({{ $agenda->id }})"
+                                                wire:confirm="¿Reactivar este enlace para que los pacientes puedan agendar?"
+                                                title="Reactivar enlace"
+                                                class="p-2 text-emerald-600 bg-emerald-50 rounded-lg hover:bg-emerald-600 hover:text-white transition-colors cursor-pointer">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                        </button>
+                                    @endif
+                                </div>
+                            </td>
+
+                            {{-- Columna extra con la flecha --}}
+                            <td class="px-6 py-4 text-right">
+                                <button wire:click="toggleExpandir({{ $agenda->id }})" 
+                                        title="Ver pacientes registrados"
+                                        class="p-1.5 text-gray-400 hover:text-siapc-blue transition transform cursor-pointer {{ $agendaExpandida === $agenda->id ? 'rotate-180' : '' }}">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                    </svg>
+                                </button>
                             </td>
                         </tr>
+
+                        {{-- SUBFILA EXPANDIBLE --}}
+                        @if($agendaExpandida === $agenda->id)
+                            <tr wire:key="agenda-detalle-{{ $agenda->id }}" class="bg-slate-50/50 border-b border-gray-100">
+                                <td colspan="7" class="px-6 py-0">
+                                    <div class="py-4">
+                                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Citas registradas a través de este enlace</h4>
+                                        
+                                        @if($agenda->citas->isEmpty())
+                                            <p class="text-sm text-slate-400 italic bg-white p-4 rounded-lg border border-slate-100">
+                                                Aún no hay pacientes registrados con este enlace.
+                                            </p>
+                                        @else
+                                            <div class="bg-white rounded-lg border border-slate-200 overflow-hidden">
+                                                <table class="w-full text-left text-xs">
+                                                    <thead class="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                                                        <tr>
+                                                            <th class="px-4 py-2">Nro. Cita</th>
+                                                            <th class="px-4 py-2">Paciente</th>
+                                                            <th class="px-4 py-2">Cédula</th>
+                                                            <th class="px-4 py-2">Correo</th>
+                                                            <th class="px-4 py-2">Servicio</th>
+                                                            <th class="px-4 py-2">Fecha y Hora</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody class="divide-y divide-slate-100">
+                                                        @foreach($agenda->citas as $cita)
+                                                            <tr class="hover:bg-slate-50">
+                                                                <td class="px-4 py-2 font-mono text-[10px] font-bold text-siapc-blue">{{ $cita->numero_cita }}</td>
+                                                                <td class="px-4 py-2 font-medium text-slate-700">{{ $cita->paciente?->nombre }} {{ $cita->paciente?->apellido }}</td>
+                                                                <td class="px-4 py-2 text-slate-500">{{ $cita->paciente?->lci }}-{{ $cita->paciente?->ci }}</td>
+                                                                <td class="px-4 py-2 text-slate-500">{{ $cita->paciente?->email }}</td>
+                                                                <td class="px-4 py-2 text-slate-500">{{ $cita->tarifa?->nombre ?? $cita->motivo }}</td>
+                                                                <td class="px-4 py-2 text-slate-500">{{ $cita->fecha->format('d/m/Y h:i A') }}</td>
+                                                            </tr>
+                                                        @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @endif
                     @empty
                         <tr>
-                            <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                            <td colspan="7" class="px-6 py-12 text-center text-gray-500">
                                 No has creado ningún enlace de agenda todavía.
                             </td>
                         </tr>
@@ -220,6 +305,7 @@ new class extends Component
             <div class="px-6 py-4 border-t border-gray-100 bg-gray-50">{{ $agendas->links() }}</div>
         @endif
     </div>
+
     {{-- MODAL DE COMPARTIR --}}
     @if($modalCompartirAbierto)
         <div class="fixed inset-0 bg-black/50 z-40" wire:click="cerrarCompartir"></div>
@@ -285,40 +371,40 @@ new class extends Component
 
     <livewire:agenda-editar-form />
 </div>
+
 @push('scripts')
-        <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
-        <script>
-            // Si la función no está definida (porque este componente se carga antes que el otro), la definimos aquí
-            if (typeof descargarImagen === 'undefined') {
-                function descargarImagen(elementoId, nombreArchivo) {
-                    const nodo = document.getElementById(elementoId);
-                    if (!nodo) return;
+    <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
+    <script>
+        if (typeof descargarImagen === 'undefined') {
+            function descargarImagen(elementoId, nombreArchivo) {
+                const nodo = document.getElementById(elementoId);
+                if (!nodo) return;
 
-                    const boton = event.target;
-                    const textoOriginal = boton.innerHTML;
-                    boton.innerHTML = 'Generando...';
-                    boton.disabled = true;
+                const boton = event.target;
+                const textoOriginal = boton.innerHTML;
+                boton.innerHTML = 'Generando...';
+                boton.disabled = true;
 
-                    htmlToImage.toPng(nodo, { quality: 0.95, pixelRatio: 2 })
-                        .then(function (dataUrl) {
-                            const link = document.createElement('a');
-                            link.download = `SIAPC-${nombreArchivo}.png`;
-                            link.href = dataUrl;
-                            link.click();
-                            
-                            boton.innerHTML = '¡Descargado!';
-                            setTimeout(() => {
-                                boton.innerHTML = textoOriginal;
-                                boton.disabled = false;
-                            }, 2000);
-                        })
-                        .catch(function (error) {
-                            console.error('Error al generar la imagen:', error);
-                            alert('Hubo un error al descargar la imagen. Intenta de nuevo.');
+                htmlToImage.toPng(nodo, { quality: 0.95, pixelRatio: 2 })
+                    .then(function (dataUrl) {
+                        const link = document.createElement('a');
+                        link.download = `SIAPC-${nombreArchivo}.png`;
+                        link.href = dataUrl;
+                        link.click();
+                        
+                        boton.innerHTML = '¡Descargado!';
+                        setTimeout(() => {
                             boton.innerHTML = textoOriginal;
                             boton.disabled = false;
-                        });
-                }
+                        }, 2000);
+                    })
+                    .catch(function (error) {
+                        console.error('Error al generar la imagen:', error);
+                        alert('Hubo un error al descargar la imagen. Intenta de nuevo.');
+                        boton.innerHTML = textoOriginal;
+                        boton.disabled = false;
+                    });
             }
-        </script>
+        }
+    </script>
 @endpush

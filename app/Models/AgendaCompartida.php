@@ -40,4 +40,9 @@ class AgendaCompartida extends Model
         return $this->belongsToMany(Tarifa::class, 'agenda_tarifas', 'agenda_compartida_id', 'tarifa_id')
                     ->withTimestamps();
     }
+
+    public function citas(): HasMany
+    {
+        return $this->hasMany(Cita::class, 'agenda_compartida_id');
+    }
 }
